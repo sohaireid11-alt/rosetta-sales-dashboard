@@ -24,11 +24,11 @@ secrets are configured in Cloudflare; never commit `.env` files or passwords.
 ```bash
 npm run build
 npx wrangler d1 migrations apply rosetta-sales-dashboard --remote
-npx wrangler deploy --config dist/server/wrangler.json
+npx wrangler deploy
 ```
 
-Before deploying, update the generated `dist/server/wrangler.json` with the
-correct production D1 database ID and configure the required Worker secrets:
+The production D1 binding is recorded in `wrangler.jsonc`. Configure the
+required Worker secrets before the first deployment:
 
 - `PASSWORD_ACCESS_ENABLED=true`
 - `APP_SESSION_SECRET`
