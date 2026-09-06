@@ -105,18 +105,18 @@ export const FIELD_LIST_DEFAULTS: Record<FieldListKey, readonly string[]> = {
 };
 
 export const FIELD_LIST_META: Record<FieldListKey, { title: string; description: string }> = {
-  statuses: { title: "Lead statuses", description: "Pipeline stages used on sales records and filters." },
-  sourceTypes: { title: "Source types", description: "How a lead first reached Rosetta." },
-  services: { title: "Services", description: "Service lines shown on new and edited sales records." },
-  interpretationDeliveries: { title: "Interpretation delivery", description: "In-person or virtual delivery for scheduled interpretation." },
-  interpretationModes: { title: "Interpretation modes", description: "Consecutive or simultaneous interpretation modes." },
-  meetingStages: { title: "Meeting stages", description: "Where the conversation stands with a lead." },
-  followUpActions: { title: "Follow-up actions", description: "Next actions on sales records and client care." },
-  opportunityTypes: { title: "Opportunity types", description: "The kind of commercial relationship being pursued." },
-  organizationTypes: { title: "Organization types", description: "The kind of organization behind a lead." },
-  activityTypes: { title: "Activity types", description: "Activity history labels on a sales record." },
-  satisfactionStatuses: { title: "Satisfaction statuses", description: "Client-care health ratings." },
-  relationshipTypes: { title: "Relationship types", description: "How an active client currently works with Rosetta." },
+  statuses: { title: "Lead statuses", description: "Dropdown choices for pipeline stage on sales records." },
+  sourceTypes: { title: "Source types", description: "Dropdown choices for how a lead first reached Rosetta." },
+  services: { title: "Services", description: "Dropdown choices for service lines on new and edited sales records." },
+  interpretationDeliveries: { title: "Interpretation delivery", description: "Dropdown choices for in-person or virtual delivery." },
+  interpretationModes: { title: "Interpretation modes", description: "Dropdown choices for consecutive or simultaneous interpretation." },
+  meetingStages: { title: "Meeting stages", description: "Dropdown choices for where the conversation stands with a lead." },
+  followUpActions: { title: "Follow-up actions", description: "Dropdown choices for next actions on sales records and client care." },
+  opportunityTypes: { title: "Opportunity types", description: "Dropdown choices for the kind of commercial relationship." },
+  organizationTypes: { title: "Organization types", description: "Dropdown choices for the kind of organization behind a lead." },
+  activityTypes: { title: "Activity types", description: "Dropdown choices for activity history on a sales record." },
+  satisfactionStatuses: { title: "Satisfaction statuses", description: "Dropdown choices for client-care health ratings." },
+  relationshipTypes: { title: "Relationship types", description: "Dropdown choices for how an active client works with Rosetta." },
 };
 
 export const UI_LABEL_KEYS = [

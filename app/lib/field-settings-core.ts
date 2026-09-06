@@ -123,7 +123,7 @@ export function normalizeListUpdate(listKey: unknown, options: unknown) {
   });
 
   if (!normalized.some((option) => option.isActive)) {
-    throw new FieldSettingsError("Keep at least one active option. Retire unused choices instead of removing every option.");
+    throw new FieldSettingsError("Keep at least one option in the dropdown. Hide unused choices instead of removing every option.");
   }
 
   return { listKey, options: normalized };
