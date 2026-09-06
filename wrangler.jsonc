@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rosetta-sales-dashboard",
+  "main": "./dist/server/index.js",
+  "no_bundle": true,
+  "find_additional_modules": false,
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PASSWORD_ACCESS_ENABLED": "true"
+  },
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rosetta-sales-dashboard",
+      "database_id": "30f835c2-502c-48b0-a96a-2756d499c162",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
