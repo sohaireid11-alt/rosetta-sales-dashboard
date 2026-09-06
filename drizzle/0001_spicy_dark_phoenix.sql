@@ -1,0 +1,1 @@
+ALTER TABLE `sales_records` ADD `organization_type` text DEFAULT 'Individual' NOT NULL;

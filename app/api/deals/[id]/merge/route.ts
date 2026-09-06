@@ -1,0 +1,22 @@
+import { RecordValidationError, errorMessage, mergeRecords } from "../../record-utils";
+import { AccessError, requireRole } from "../../../../lib/access";
+
+function readId(value: string) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) throw new RecordValidationError("Invalid sales record.");
+  return id;
+}
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    await requireRole(request, ["admin"]);
+    const { id } = await context.params;
+    const payload = await request.json() as { duplicateRecordId?: unknown };
+    const record = await mergeRecords(readId(id), payload.duplicateRecordId);
+    if (!record) return Response.json({ error: "Sales record not found." }, { status: 404 });
+    return Response.json({ record });
+  } catch (error) {
+    const status = error instanceof AccessError ? error.status : error instanceof RecordValidationError ? 400 : 500;
+    return Response.json({ error: errorMessage(error) }, { status });
+  }
+}

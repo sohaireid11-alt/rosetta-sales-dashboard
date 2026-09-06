@@ -1,0 +1,1 @@
+ALTER TABLE `sales_records` ADD `payment_status` text DEFAULT 'Not recorded' NOT NULL;
