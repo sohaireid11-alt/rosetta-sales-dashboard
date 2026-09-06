@@ -8,6 +8,7 @@ const files = {
   salesConfig: new URL("../app/sales-config.ts", import.meta.url),
   core: new URL("../app/lib/field-settings-core.ts", import.meta.url),
   api: new URL("../app/api/field-settings/route.ts", import.meta.url),
+  utils: new URL("../app/api/field-settings/field-settings-utils.ts", import.meta.url),
   page: new URL("../app/field-settings/page.tsx", import.meta.url),
   home: new URL("../app/page.tsx", import.meta.url),
   contributor: new URL("../app/contributor-form.tsx", import.meta.url),
@@ -32,6 +33,23 @@ test("persists configurable field options and seeds from sales-config", async ()
   assert.match(salesConfig, /export const STATUSES/);
   assert.match(salesConfig, /export const FIELD_LIST_DEFAULTS/);
   assert.match(salesConfig, /export const DEFAULT_UI_LABELS/);
+  assert.match(salesConfig, /export const FIELD_LIST_KEYS/);
+  for (const key of [
+    "statuses",
+    "sourceTypes",
+    "services",
+    "interpretationDeliveries",
+    "interpretationModes",
+    "meetingStages",
+    "followUpActions",
+    "opportunityTypes",
+    "organizationTypes",
+    "activityTypes",
+    "satisfactionStatuses",
+    "relationshipTypes",
+  ]) {
+    assert.match(salesConfig, new RegExp(`${key}:`));
+  }
 });
 
 test("keeps field settings writes admin-only and forms load stored options", async () => {
@@ -47,7 +65,8 @@ test("keeps field settings writes admin-only and forms load stored options", asy
   assert.match(api, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(api, /requireRole\(request, \["admin"\]\)/);
   assert.match(page, /Field settings/);
-  assert.match(page, /retire an option instead of deleting it/);
+  assert.match(page, /Add option/);
+  assert.match(page, /Remove from dropdowns/);
   assert.match(home, /\/api\/field-settings/);
   assert.match(home, /Field settings/);
   assert.match(contributor, /\/api\/field-settings/);
@@ -55,10 +74,43 @@ test("keeps field settings writes admin-only and forms load stored options", asy
   assert.match(recordUtils, /getOptionLists/);
 });
 
-test("retires omitted options instead of deleting them", async () => {
-  const core = await readFile(files.core, "utf8");
-  assert.match(core, /Keep at least one active option/);
+test("makes add and remove the primary picklist workflow", async () => {
+  const page = await readFile(files.page, "utf8");
+
+  assert.match(page, /Dropdown options/);
+  assert.match(page, /Add a dropdown option/);
+  assert.match(page, /Type a new choice, then press Enter/);
+  assert.match(page, /Remove from dropdowns/);
+  assert.match(page, /Restore/);
+  assert.match(page, /Hidden from dropdowns/);
+  assert.match(page, /function addOption/);
+  assert.match(page, /function removeOption/);
+  assert.match(page, /FIELD_LIST_KEYS\.map/);
+  assert.match(page, /picklist-nav/);
+  assert.match(page, /No options yet/);
+  assert.match(page, /Permanent delete is not used/);
+
+  const picklistsIndex = page.indexOf("{FIELD_LIST_KEYS.map((listKey) => {");
+  const labelsIndex = page.indexOf('id="display-labels"');
+  assert.ok(picklistsIndex > 0 && labelsIndex > picklistsIndex, "picklists should appear before display labels");
+});
+
+test("hides inactive options from dashboard and contributor dropdowns", async () => {
+  const [core, home, contributor, utils] = await Promise.all([
+    readFile(files.core, "utf8"),
+    readFile(files.home, "utf8"),
+    readFile(files.contributor, "utf8"),
+    readFile(files.utils, "utf8"),
+  ]);
+
+  assert.match(core, /function visibleOptions/);
+  assert.match(core, /const active = list.filter\(\(option\) => option.isActive\)/);
+  assert.match(core, /Keep at least one option in the dropdown/);
   assert.match(core, /function mergeListOptions/);
   assert.match(core, /isActive: false/);
   assert.match(core, /normalizeLabelsUpdate/);
+  assert.match(home, /visibleOptions\(options, currentValue\)/);
+  assert.match(contributor, /visibleOptions\(options, currentValue\)/);
+  assert.match(utils, /lists\[listKey\] = settings\.lists\[listKey\]\.filter\(\(option\) => option.isActive\)/);
+  assert.match(utils, /if \(!includeRetired && !row.isActive\) continue/);
 });

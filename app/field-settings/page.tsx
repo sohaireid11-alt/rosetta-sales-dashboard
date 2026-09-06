@@ -26,6 +26,10 @@ function cloneSettings(settings: FieldSettings): FieldSettings {
   };
 }
 
+function listFingerprint(options: FieldOption[]) {
+  return options.map((option) => `${option.value}\u0000${option.label}\u0000${option.isActive ? "1" : "0"}`).join("\n");
+}
+
 export default function FieldSettingsPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [settings, setSettings] = useState<FieldSettings>(defaultFieldSettings);
@@ -77,6 +81,15 @@ export default function FieldSettingsPage() {
   function addOption(listKey: FieldListKey) {
     const label = newLabels[listKey].trim();
     if (!label) return;
+    const duplicate = draft.lists[listKey].some((option) => (
+      option.label.toLocaleLowerCase() === label.toLocaleLowerCase()
+      || option.value.toLocaleLowerCase() === label.toLocaleLowerCase()
+    ));
+    if (duplicate) {
+      setError(`"${label}" is already on ${FIELD_LIST_META[listKey].title}.`);
+      return;
+    }
+    setError("");
     setDraft((current) => {
       const options = [...current.lists[listKey], {
         id: 0,
@@ -88,6 +101,23 @@ export default function FieldSettingsPage() {
       return { ...current, lists: { ...current.lists, [listKey]: options } };
     });
     setNewLabels((current) => ({ ...current, [listKey]: "" }));
+  }
+
+  function removeOption(listKey: FieldListKey, index: number) {
+    setDraft((current) => {
+      const option = current.lists[listKey][index];
+      if (!option) return current;
+      if (option.id === 0) {
+        const options = current.lists[listKey]
+          .filter((_, optionIndex) => optionIndex !== index)
+          .map((next, sortOrder) => ({ ...next, sortOrder }));
+        return { ...current, lists: { ...current.lists, [listKey]: options } };
+      }
+      const options = current.lists[listKey].map((next, optionIndex) => (
+        optionIndex === index ? { ...next, isActive: false } : next
+      ));
+      return { ...current, lists: { ...current.lists, [listKey]: options } };
+    });
   }
 
   async function saveList(listKey: FieldListKey) {
@@ -112,7 +142,7 @@ export default function FieldSettingsPage() {
       const next = cloneSettings(payload);
       setSettings(next);
       setDraft(cloneSettings(next));
-      setNotice(`${FIELD_LIST_META[listKey].title} updated. New edits and dropdowns will use these options.`);
+      setNotice(`${FIELD_LIST_META[listKey].title} updated. Dashboard forms will now use these dropdown options.`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Unable to save this picklist.");
     } finally {
@@ -168,19 +198,105 @@ export default function FieldSettingsPage() {
       <div className="page-heading">
         <div>
           <p className="eyebrow">Admin controls</p>
-          <h1>Field settings</h1>
-          <p className="heading-copy">Amend picklists and a few high-traffic labels here. Changes apply to new edits and dropdowns. Historical sales records keep the values already saved on them, so retire an option instead of deleting it.</p>
+          <h1>Dropdown options</h1>
+          <p className="heading-copy">Add, remove, rename, and reorder the choices that appear in dashboard dropdowns — services, statuses, sources, actions, and the other form lists. Changes apply the next time someone opens a form. Existing sales records keep the values already saved on them.</p>
         </div>
       </div>
       {notice ? <div className="notice" role="status">{notice}</div> : null}
       {error ? <div className="notice is-error" role="alert">{error}</div> : null}
 
-      <form className="settings-panel" onSubmit={saveLabels}>
+      <nav className="picklist-nav" aria-label="Dropdown lists">
+        {FIELD_LIST_KEYS.map((listKey) => (
+          <a className="picklist-nav-link" href={`#picklist-${listKey}`} key={listKey}>{FIELD_LIST_META[listKey].title}</a>
+        ))}
+        <a className="picklist-nav-link is-secondary" href="#display-labels">Display labels</a>
+      </nav>
+
+      {FIELD_LIST_KEYS.map((listKey) => {
+        const options = draft.lists[listKey];
+        const activeCount = options.filter((option) => option.isActive).length;
+        const hiddenCount = options.length - activeCount;
+        const unsaved = listFingerprint(options) !== listFingerprint(settings.lists[listKey]);
+        return <section className="settings-panel" id={`picklist-${listKey}`} key={listKey}>
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Dropdown list</p>
+              <h2>{FIELD_LIST_META[listKey].title}</h2>
+              <p className="table-note">{FIELD_LIST_META[listKey].description} Removing an option hides it from new dropdowns. Historical records keep the stored value, so it is not permanently deleted.</p>
+            </div>
+            <button className={unsaved ? "primary-action" : "secondary-action"} type="button" onClick={() => void saveList(listKey)} disabled={savingList !== null}>
+              {savingList === listKey ? "Saving..." : unsaved ? "Save picklist" : "Saved"}
+            </button>
+          </div>
+          <form
+            className="add-option-card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              addOption(listKey);
+            }}
+          >
+            <label>
+              Add a dropdown option
+              <input
+                value={newLabels[listKey]}
+                onChange={(event) => setNewLabels((current) => ({ ...current, [listKey]: event.target.value }))}
+                placeholder="Type a new choice, then press Enter"
+              />
+            </label>
+            <button type="submit" className="primary-action add-option-button" disabled={!newLabels[listKey].trim() || savingList !== null}>Add option</button>
+          </form>
+          {options.length ? <div className="settings-options">
+            {options.map((option, index) => {
+              const unsavedOption = option.id === 0;
+              return <div className={option.isActive ? "settings-option" : "settings-option is-hidden"} key={`${listKey}-${option.value}-${index}`}>
+                <div className="settings-option-fields">
+                  <label>
+                    Option name
+                    <input value={option.label} onChange={(event) => updateOption(listKey, index, { label: event.target.value })} />
+                  </label>
+                  <p className="stored-value">Stored value: {option.value}{unsavedOption ? " · Not saved yet" : ""}</p>
+                </div>
+                <div className="settings-option-actions">
+                  <span className={`access-status ${option.isActive ? "access-active" : "access-revoked"}`}>
+                    {option.isActive ? "In dropdowns" : "Hidden from dropdowns"}
+                  </span>
+                  <button type="button" className="secondary-action compact-action" onClick={() => moveOption(listKey, index, -1)} disabled={index === 0}>Up</button>
+                  <button type="button" className="secondary-action compact-action" onClick={() => moveOption(listKey, index, 1)} disabled={index === options.length - 1}>Down</button>
+                  {option.isActive ? (
+                    <button
+                      type="button"
+                      className="delete-button"
+                      onClick={() => removeOption(listKey, index)}
+                    >
+                      {unsavedOption ? "Remove" : "Remove from dropdowns"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="secondary-action compact-action"
+                      onClick={() => updateOption(listKey, index, { isActive: true })}
+                    >
+                      Restore
+                    </button>
+                  )}
+                </div>
+              </div>;
+            })}
+          </div> : <p className="picklist-empty">No options yet. Type a choice above and click Add option, then save this picklist.</p>}
+          <p className="table-note">
+            {activeCount} in dropdowns{hiddenCount ? ` · ${hiddenCount} hidden from dropdowns` : ""}.
+            {unsaved ? " You have unsaved changes on this list." : ""}
+            {" "}Hidden options stay valid on older records. Restore puts them back in the menus. Permanent delete is not used, so history never breaks.
+          </p>
+        </section>;
+      })}
+
+      <form className="settings-panel labels-panel" id="display-labels" onSubmit={saveLabels}>
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Display labels</p>
             <h2>Dashboard wording</h2>
-            <p className="table-note">A small set of tab names, headings, and primary buttons. A fuller label library can follow later.</p>
+            <p className="table-note">These are tab names, headings, and buttons — not dropdown menu options. Use the lists above to add or remove form choices.</p>
           </div>
           <button className="primary-action" type="submit" disabled={savingList !== null}>{savingList === "labels" ? "Saving..." : "Save labels"}</button>
         </div>
@@ -194,60 +310,6 @@ export default function FieldSettingsPage() {
           ))}
         </div>
       </form>
-
-      {FIELD_LIST_KEYS.map((listKey) => {
-        const options = draft.lists[listKey];
-        const savedCount = settings.lists[listKey].length;
-        return <section className="settings-panel" key={listKey}>
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Picklist</p>
-              <h2>{FIELD_LIST_META[listKey].title}</h2>
-              <p className="table-note">{FIELD_LIST_META[listKey].description} Stored values stay the same when you rename a label, so older records still match.</p>
-            </div>
-            <button className="primary-action" type="button" onClick={() => void saveList(listKey)} disabled={savingList !== null}>
-              {savingList === listKey ? "Saving..." : "Save picklist"}
-            </button>
-          </div>
-          <div className="settings-options">
-            {options.map((option, index) => (
-              <div className={option.isActive ? "settings-option" : "settings-option is-retired"} key={`${listKey}-${option.value}-${index}`}>
-                <div className="settings-option-fields">
-                  <label>
-                    Display label
-                    <input value={option.label} onChange={(event) => updateOption(listKey, index, { label: event.target.value })} />
-                  </label>
-                  <p className="stored-value">Stored value: {option.value}</p>
-                </div>
-                <div className="settings-option-actions">
-                  <span className={`access-status ${option.isActive ? "access-active" : "access-revoked"}`}>{option.isActive ? "Active" : "Retired"}</span>
-                  <button type="button" className="secondary-action compact-action" onClick={() => moveOption(listKey, index, -1)} disabled={index === 0}>Up</button>
-                  <button type="button" className="secondary-action compact-action" onClick={() => moveOption(listKey, index, 1)} disabled={index === options.length - 1}>Down</button>
-                  <button
-                    type="button"
-                    className={option.isActive ? "delete-button" : "secondary-action compact-action"}
-                    onClick={() => updateOption(listKey, index, { isActive: !option.isActive })}
-                  >
-                    {option.isActive ? "Retire" : "Restore"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="add-option-row">
-            <label>
-              Add option
-              <input
-                value={newLabels[listKey]}
-                onChange={(event) => setNewLabels((current) => ({ ...current, [listKey]: event.target.value }))}
-                placeholder="New option label"
-              />
-            </label>
-            <button type="button" className="secondary-action" onClick={() => addOption(listKey)} disabled={!newLabels[listKey].trim()}>Add to list</button>
-          </div>
-          <p className="table-note">{savedCount} saved option{savedCount === 1 ? "" : "s"}. Retired options stay available on historical records.</p>
-        </section>;
-      })}
     </section>
   </main>;
 }
