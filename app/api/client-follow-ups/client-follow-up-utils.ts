@@ -1,4 +1,6 @@
-import { getOptionLists } from "../field-settings/field-settings-utils";
+import { DEFAULT_FIELD_DEFINITIONS, findFieldDefinition } from "../../admin-catalog";
+import { getFieldSettings, getOptionLists } from "../field-settings/field-settings-utils";
+import { parseStoredValues, serializeStoredValues } from "../../lib/field-values";
 import { getDatabase } from "../../../db";
 
 export type ClientFollowUp = {
@@ -40,32 +42,49 @@ function date(value: unknown, label: string) {
   return valueText;
 }
 
-function option(value: unknown, options: readonly string[], label: string) {
-  const text = requiredText(value, label, 120);
-  if (!options.includes(text)) throw new ClientFollowUpValidationError(`Choose a valid ${label.toLowerCase()}.`);
-  return text;
+function option(value: unknown, options: readonly string[], label: string, extras: { required?: boolean; allowMultiple?: boolean } = {}) {
+  const selected = parseStoredValues(value);
+  if (!selected.length) {
+    if (extras.required === false) return "";
+    throw new ClientFollowUpValidationError(`${label} is required.`);
+  }
+  for (const choice of selected) {
+    if (!options.includes(choice)) throw new ClientFollowUpValidationError(`Choose a valid ${label.toLowerCase()}.`);
+  }
+  return serializeStoredValues(selected, extras.allowMultiple === true);
 }
 
 export async function readClientFollowUpInput(payload: unknown): Promise<ClientFollowUpInput> {
   if (!payload || typeof payload !== "object") throw new ClientFollowUpValidationError("A client follow-up is required.");
   const data = payload as Record<string, unknown>;
+  const settings = await getFieldSettings(true);
   const lists = await getOptionLists();
+  const fields = settings.fields.length ? settings.fields : DEFAULT_FIELD_DEFINITIONS;
   const rawId = data.salesRecordId;
   const salesRecordId = rawId === "" || rawId === null || rawId === undefined ? null : Number(rawId);
   if (salesRecordId !== null && (!Number.isInteger(salesRecordId) || salesRecordId < 1)) {
     throw new ClientFollowUpValidationError("Choose a valid linked sales record.");
   }
-  const nextAction = optionalText(data.nextAction, "Next action", 120);
-  if (nextAction && !lists.followUpActions.includes(nextAction)) {
-    throw new ClientFollowUpValidationError("Choose a valid next action.");
-  }
+  const nextActionField = findFieldDefinition(fields, "client_follow_up", "nextAction");
+  const relationshipField = findFieldDefinition(fields, "client_follow_up", "relationshipType");
+  const satisfactionField = findFieldDefinition(fields, "client_follow_up", "satisfactionStatus");
+  const nextAction = option(data.nextAction, lists.followUpActions, "Next action", {
+    required: false,
+    allowMultiple: nextActionField?.inputType === "multiselect",
+  });
   return {
     salesRecordId,
     clientName: requiredText(data.clientName, "Client name"),
-    relationshipType: option(data.relationshipType, lists.relationshipTypes, "Relationship type"),
+    relationshipType: option(data.relationshipType, lists.relationshipTypes, "Relationship type", {
+      required: relationshipField?.isRequired !== false,
+      allowMultiple: relationshipField?.inputType === "multiselect",
+    }),
     lastEngagementAt: date(data.lastEngagementAt, "Last service date"),
     lastCheckInAt: date(data.lastCheckInAt, "Last satisfaction check-in"),
-    satisfactionStatus: option(data.satisfactionStatus, lists.satisfactionStatuses, "Satisfaction status"),
+    satisfactionStatus: option(data.satisfactionStatus, lists.satisfactionStatuses, "Satisfaction status", {
+      required: satisfactionField?.isRequired !== false,
+      allowMultiple: satisfactionField?.inputType === "multiselect",
+    }),
     nextFollowUpAt: date(data.nextFollowUpAt, "Next follow-up date"),
     nextAction,
     expansionOpportunity: optionalText(data.expansionOpportunity, "Expansion opportunity", 1_000),

@@ -1,4 +1,6 @@
-import { getOptionLists } from "../field-settings/field-settings-utils";
+import { DEFAULT_FIELD_DEFINITIONS, findFieldDefinition, type FieldDefinition } from "../../admin-catalog";
+import { getFieldSettings, getOptionLists } from "../field-settings/field-settings-utils";
+import { includesChoice, parseStoredValues, serializeStoredValues } from "../../lib/field-values";
 import {
   PENDING_STAGE,
   SCHEDULED_INTERPRETATION_SERVICE,
@@ -96,24 +98,58 @@ function oneOf(value: unknown, options: readonly string[], label: string, fallba
   return selected;
 }
 
-export function parseRecordInput(payload: unknown, lists: OptionLists): RecordInput {
+function oneOrMany(
+  value: unknown,
+  options: readonly string[],
+  label: string,
+  extras: { required?: boolean; allowMultiple?: boolean; fallback?: string } = {}
+) {
+  const selected = parseStoredValues(value);
+  if (!selected.length && extras.fallback) selected.push(extras.fallback);
+  if (!selected.length) {
+    if (extras.required === false) return "";
+    throw new RecordValidationError(`Choose a valid ${label}.`);
+  }
+  for (const choice of selected) {
+    if (!options.includes(choice)) throw new RecordValidationError(`Choose a valid ${label}.`);
+  }
+  return serializeStoredValues(selected, extras.allowMultiple === true);
+}
+
+function choiceFromField(
+  data: Record<string, unknown>,
+  fieldKey: string,
+  lists: OptionLists,
+  fields: FieldDefinition[],
+  label: string,
+  extras: { required?: boolean; fallback?: string; alias?: string } = {}
+) {
+  const field = findFieldDefinition(fields, "sales_record", fieldKey);
+  const listKey = field?.listKey;
+  const options = listKey ? lists[listKey] : [];
+  const raw = data[fieldKey] ?? (extras.alias ? data[extras.alias] : undefined);
+  return oneOrMany(raw, options, label, {
+    required: extras.required ?? field?.isRequired ?? true,
+    allowMultiple: field?.inputType === "multiselect",
+    fallback: extras.fallback,
+  });
+}
+
+export function parseRecordInput(payload: unknown, lists: OptionLists, fields: FieldDefinition[] = DEFAULT_FIELD_DEFINITIONS): RecordInput {
   if (!payload || typeof payload !== "object") throw new RecordValidationError("A sales record is required.");
   const data = payload as Record<string, unknown>;
-  const stage = oneOf(data.stage, lists.statuses, "status");
-  const service = oneOf(data.service, lists.services, "service");
-  const isScheduledInterpretation = service === SCHEDULED_INTERPRETATION_SERVICE;
+  const stage = choiceFromField(data, "stage", lists, fields, "status");
+  const service = choiceFromField(data, "service", lists, fields, "service");
+  const isScheduledInterpretation = includesChoice(service, SCHEDULED_INTERPRETATION_SERVICE);
   const serviceDelivery = isScheduledInterpretation
-    ? oneOf(data.serviceDelivery, lists.interpretationDeliveries, "interpretation delivery")
+    ? choiceFromField(data, "serviceDelivery", lists, fields, "interpretation delivery")
     : "";
   const interpretationMode = isScheduledInterpretation
-    ? oneOf(data.interpretationMode, lists.interpretationModes, "interpretation mode")
+    ? choiceFromField(data, "interpretationMode", lists, fields, "interpretation mode")
     : "";
   const nextFollowUpAt = validDate(data.nextFollowUpAt, "Date of next follow-up", false);
-  const nextAction = optionalText(data.nextAction, "Action needed", 120);
-  if (nextAction && !lists.followUpActions.includes(nextAction)) {
-    throw new RecordValidationError("Choose a valid action needed.");
-  }
-  if (stage === PENDING_STAGE && (!nextFollowUpAt || !nextAction)) {
+  const nextAction = choiceFromField(data, "nextAction", lists, fields, "action needed", { required: false });
+  if (includesChoice(stage, PENDING_STAGE) && (!nextFollowUpAt || !nextAction)) {
     throw new RecordValidationError("Pending leads need an action and a date of next follow-up.");
   }
 
@@ -125,20 +161,20 @@ export function parseRecordInput(payload: unknown, lists: OptionLists): RecordIn
   return {
     leadName: requiredText(data.leadName, "Lead name"),
     company: optionalText(data.company, "Company", 160),
-    organizationType: oneOf(data.organizationType, lists.organizationTypes, "organization type", "Individual"),
-    sourceType: oneOf(data.sourceType ?? data.source, lists.sourceTypes, "lead source"),
+    organizationType: choiceFromField(data, "organizationType", lists, fields, "organization type", { fallback: "Individual" }),
+    sourceType: choiceFromField(data, "sourceType", lists, fields, "lead source", { alias: "source" }),
     referredBy: optionalText(data.referredBy, "Referred by", 160),
     requestReceivedBy: optionalText(data.requestReceivedBy ?? data.owner, "Request received by", 80) || "Admin",
     service,
     serviceDelivery,
     interpretationMode,
-    opportunityType: oneOf(data.opportunityType, lists.opportunityTypes, "opportunity type", "One-time project"),
+    opportunityType: choiceFromField(data, "opportunityType", lists, fields, "opportunity type", { fallback: "One-time project" }),
     stage,
     contactName: optionalText(data.contactName, "Contact name", 120),
     contactTitle: optionalText(data.contactTitle, "Contact title", 120),
     contactEmail,
     contactPhone: optionalText(data.contactPhone, "Contact phone", 60),
-    meetingStage: oneOf(data.meetingStage, lists.meetingStages, "meeting stage", "No meeting yet"),
+    meetingStage: choiceFromField(data, "meetingStage", lists, fields, "meeting stage", { fallback: "No meeting yet" }),
     nextMeetingAt: validDate(data.nextMeetingAt, "Next meeting date", false),
     nextFollowUpAt,
     nextAction,
@@ -150,7 +186,11 @@ export function parseRecordInput(payload: unknown, lists: OptionLists): RecordIn
 }
 
 export async function readRecordInput(payload: unknown): Promise<RecordInput> {
-  return parseRecordInput(payload, await getOptionLists());
+  const settings = await getFieldSettings(true);
+  const lists = Object.fromEntries(
+    (Object.keys(settings.lists) as FieldListKey[]).map((key) => [key, settings.lists[key].map((option) => option.value)])
+  ) as OptionLists;
+  return parseRecordInput(payload, lists, settings.fields);
 }
 
 export async function listRecords() {
@@ -168,7 +208,7 @@ export async function createRecord(input: RecordInput) {
 }
 
 function createRecordStatement(database: D1Database, input: RecordInput) {
-  const bookedRevenueCents = input.stage === WON_STAGE ? input.estimatedRevenueCents : 0;
+  const bookedRevenueCents = includesChoice(input.stage, WON_STAGE) ? input.estimatedRevenueCents : 0;
   return database.prepare(
     `INSERT INTO sales_records (
       lead_name, company, organization_type, source, owner, referred_by, request_received_by,
@@ -237,7 +277,7 @@ function recordIdentity(leadName: string, createdAt: string) {
 
 export async function updateRecord(id: number, input: RecordInput) {
   const database = await getDatabase();
-  const bookedRevenueCents = input.stage === WON_STAGE ? input.estimatedRevenueCents : 0;
+  const bookedRevenueCents = includesChoice(input.stage, WON_STAGE) ? input.estimatedRevenueCents : 0;
   await database.prepare(
     `UPDATE sales_records SET
       lead_name = ?, company = ?, organization_type = ?, source = ?, owner = ?, referred_by = ?, request_received_by = ?,
@@ -274,7 +314,7 @@ export async function mergeRecords(primaryId: number, duplicateIdValue: unknown)
 
   const nextFollowUpAt = primary.nextFollowUpAt ?? duplicate.nextFollowUpAt;
   const estimatedRevenueCents = primary.estimatedRevenueCents || duplicate.estimatedRevenueCents;
-  const bookedRevenueCents = primary.stage === WON_STAGE ? estimatedRevenueCents : 0;
+  const bookedRevenueCents = includesChoice(primary.stage, WON_STAGE) ? estimatedRevenueCents : 0;
   const now = new Date().toISOString();
   const mergedCreatedAt = primary.createdAt <= duplicate.createdAt ? primary.createdAt : duplicate.createdAt;
   const mergedMeetingStage = primary.meetingStage === "No meeting yet" ? duplicate.meetingStage : primary.meetingStage;

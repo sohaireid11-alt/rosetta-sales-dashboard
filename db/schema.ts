@@ -151,3 +151,45 @@ export const appSettings = sqliteTable("app_settings", {
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const appFieldDefinitions = sqliteTable(
+  "app_field_definitions",
+  {
+    entity: text("entity").notNull(),
+    fieldKey: text("field_key").notNull(),
+    label: text("label").notNull(),
+    helpText: text("help_text").notNull().default(""),
+    inputType: text("input_type").notNull(),
+    isRequired: integer("is_required", { mode: "boolean" }).notNull().default(false),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    sectionKey: text("section_key").notNull(),
+    listKey: text("list_key"),
+    storageColumn: text("storage_column").notNull(),
+    showOnContributor: integer("show_on_contributor", { mode: "boolean" }).notNull().default(false),
+    typeLocked: integer("type_locked", { mode: "boolean" }).notNull().default(false),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_app_field_definitions_entity_key").on(table.entity, table.fieldKey),
+    index("idx_app_field_definitions_entity_sort").on(table.entity, table.sortOrder),
+  ]
+);
+
+export const appViewColumns = sqliteTable(
+  "app_view_columns",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    viewKey: text("view_key").notNull(),
+    columnKey: text("column_key").notNull(),
+    label: text("label").notNull(),
+    isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isLocked: integer("is_locked", { mode: "boolean" }).notNull().default(false),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_app_view_columns_view_column").on(table.viewKey, table.columnKey),
+    index("idx_app_view_columns_view_sort").on(table.viewKey, table.sortOrder),
+  ]
+);
