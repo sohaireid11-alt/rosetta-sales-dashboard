@@ -1,19 +1,16 @@
+import { getOptionLists } from "../field-settings/field-settings-utils";
 import {
-  ACTIVITY_TYPES,
-  FOLLOW_UP_ACTIONS,
-  INTERPRETATION_DELIVERIES,
-  INTERPRETATION_MODES,
-  MEETING_STAGES,
-  OPPORTUNITY_TYPES,
-  ORGANIZATION_TYPES,
-  SERVICES,
-  SOURCE_TYPES,
+  PENDING_STAGE,
+  SCHEDULED_INTERPRETATION_SERVICE,
   STATUSES,
+  WON_STAGE,
+  type FieldListKey,
 } from "../../sales-config";
 import { getDatabase } from "../../../db";
 
 export const STAGES = STATUSES;
-export type SalesStage = (typeof STAGES)[number];
+export type SalesStage = string;
+export type OptionLists = Record<FieldListKey, string[]>;
 
 export type SalesRecord = {
   id: number;
@@ -92,31 +89,31 @@ function validDate(value: unknown, label: string, required: boolean) {
   return date;
 }
 
-function oneOf<T extends readonly string[]>(value: unknown, options: T, label: string, fallback?: T[number]) {
+function oneOf(value: unknown, options: readonly string[], label: string, fallback?: string) {
   const text = typeof value === "string" ? value.trim() : "";
   const selected = text || fallback;
-  if (!selected || !options.includes(selected as T[number])) throw new RecordValidationError(`Choose a valid ${label}.`);
-  return selected as T[number];
+  if (!selected || !options.includes(selected)) throw new RecordValidationError(`Choose a valid ${label}.`);
+  return selected;
 }
 
-export function readRecordInput(payload: unknown): RecordInput {
+export function parseRecordInput(payload: unknown, lists: OptionLists): RecordInput {
   if (!payload || typeof payload !== "object") throw new RecordValidationError("A sales record is required.");
   const data = payload as Record<string, unknown>;
-  const stage = oneOf(data.stage, STAGES, "status");
-  const service = oneOf(data.service, SERVICES, "service");
-  const isScheduledInterpretation = service === "Scheduled Interpretation";
+  const stage = oneOf(data.stage, lists.statuses, "status");
+  const service = oneOf(data.service, lists.services, "service");
+  const isScheduledInterpretation = service === SCHEDULED_INTERPRETATION_SERVICE;
   const serviceDelivery = isScheduledInterpretation
-    ? oneOf(data.serviceDelivery, INTERPRETATION_DELIVERIES, "interpretation delivery")
+    ? oneOf(data.serviceDelivery, lists.interpretationDeliveries, "interpretation delivery")
     : "";
   const interpretationMode = isScheduledInterpretation
-    ? oneOf(data.interpretationMode, INTERPRETATION_MODES, "interpretation mode")
+    ? oneOf(data.interpretationMode, lists.interpretationModes, "interpretation mode")
     : "";
   const nextFollowUpAt = validDate(data.nextFollowUpAt, "Date of next follow-up", false);
   const nextAction = optionalText(data.nextAction, "Action needed", 120);
-  if (nextAction && !FOLLOW_UP_ACTIONS.includes(nextAction as (typeof FOLLOW_UP_ACTIONS)[number])) {
+  if (nextAction && !lists.followUpActions.includes(nextAction)) {
     throw new RecordValidationError("Choose a valid action needed.");
   }
-  if (stage === "Pending" && (!nextFollowUpAt || !nextAction)) {
+  if (stage === PENDING_STAGE && (!nextFollowUpAt || !nextAction)) {
     throw new RecordValidationError("Pending leads need an action and a date of next follow-up.");
   }
 
@@ -128,20 +125,20 @@ export function readRecordInput(payload: unknown): RecordInput {
   return {
     leadName: requiredText(data.leadName, "Lead name"),
     company: optionalText(data.company, "Company", 160),
-    organizationType: oneOf(data.organizationType, ORGANIZATION_TYPES, "organization type", "Individual"),
-    sourceType: oneOf(data.sourceType ?? data.source, SOURCE_TYPES, "lead source"),
+    organizationType: oneOf(data.organizationType, lists.organizationTypes, "organization type", "Individual"),
+    sourceType: oneOf(data.sourceType ?? data.source, lists.sourceTypes, "lead source"),
     referredBy: optionalText(data.referredBy, "Referred by", 160),
     requestReceivedBy: optionalText(data.requestReceivedBy ?? data.owner, "Request received by", 80) || "Admin",
     service,
     serviceDelivery,
     interpretationMode,
-    opportunityType: oneOf(data.opportunityType, OPPORTUNITY_TYPES, "opportunity type", "One-time project"),
+    opportunityType: oneOf(data.opportunityType, lists.opportunityTypes, "opportunity type", "One-time project"),
     stage,
     contactName: optionalText(data.contactName, "Contact name", 120),
     contactTitle: optionalText(data.contactTitle, "Contact title", 120),
     contactEmail,
     contactPhone: optionalText(data.contactPhone, "Contact phone", 60),
-    meetingStage: oneOf(data.meetingStage, MEETING_STAGES, "meeting stage", "No meeting yet"),
+    meetingStage: oneOf(data.meetingStage, lists.meetingStages, "meeting stage", "No meeting yet"),
     nextMeetingAt: validDate(data.nextMeetingAt, "Next meeting date", false),
     nextFollowUpAt,
     nextAction,
@@ -150,6 +147,10 @@ export function readRecordInput(payload: unknown): RecordInput {
     closedAt: validDate(data.closedAt, "Close date", false),
     initialNote: optionalText(data.initialNote ?? data.notes, "Initial note", 2_000),
   };
+}
+
+export async function readRecordInput(payload: unknown): Promise<RecordInput> {
+  return parseRecordInput(payload, await getOptionLists());
 }
 
 export async function listRecords() {
@@ -167,7 +168,7 @@ export async function createRecord(input: RecordInput) {
 }
 
 function createRecordStatement(database: D1Database, input: RecordInput) {
-  const bookedRevenueCents = input.stage === "Won" ? input.estimatedRevenueCents : 0;
+  const bookedRevenueCents = input.stage === WON_STAGE ? input.estimatedRevenueCents : 0;
   return database.prepare(
     `INSERT INTO sales_records (
       lead_name, company, organization_type, source, owner, referred_by, request_received_by,
@@ -236,7 +237,7 @@ function recordIdentity(leadName: string, createdAt: string) {
 
 export async function updateRecord(id: number, input: RecordInput) {
   const database = await getDatabase();
-  const bookedRevenueCents = input.stage === "Won" ? input.estimatedRevenueCents : 0;
+  const bookedRevenueCents = input.stage === WON_STAGE ? input.estimatedRevenueCents : 0;
   await database.prepare(
     `UPDATE sales_records SET
       lead_name = ?, company = ?, organization_type = ?, source = ?, owner = ?, referred_by = ?, request_received_by = ?,
@@ -273,7 +274,7 @@ export async function mergeRecords(primaryId: number, duplicateIdValue: unknown)
 
   const nextFollowUpAt = primary.nextFollowUpAt ?? duplicate.nextFollowUpAt;
   const estimatedRevenueCents = primary.estimatedRevenueCents || duplicate.estimatedRevenueCents;
-  const bookedRevenueCents = primary.stage === "Won" ? estimatedRevenueCents : 0;
+  const bookedRevenueCents = primary.stage === WON_STAGE ? estimatedRevenueCents : 0;
   const now = new Date().toISOString();
   const mergedCreatedAt = primary.createdAt <= duplicate.createdAt ? primary.createdAt : duplicate.createdAt;
   const mergedMeetingStage = primary.meetingStage === "No meeting yet" ? duplicate.meetingStage : primary.meetingStage;
@@ -321,7 +322,7 @@ function createActivityStatement(database: D1Database, salesRecordId: number, ac
 }
 
 export async function addActivity(salesRecordId: number, activityType: unknown, content: unknown) {
-  const type = oneOf(activityType, ACTIVITY_TYPES, "activity type");
+  const type = oneOf(activityType, (await getOptionLists()).activityTypes, "activity type");
   const note = requiredText(content, "Activity note", 2_000);
   const database = await getDatabase();
   const result = await createActivityStatement(database, salesRecordId, type, note).run();

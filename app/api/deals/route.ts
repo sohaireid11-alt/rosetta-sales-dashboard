@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const user = await requireRole(request, ["admin", "contributor"]);
     const payload = await request.json();
     const record = await createRecord(
-      readRecordInput(
+      await readRecordInput(
         user.role === "contributor" && payload && typeof payload === "object"
           ? { ...(payload as Record<string, unknown>), owner: user.displayName }
           : payload

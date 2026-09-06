@@ -11,7 +11,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await requireRole(request, ["admin"]);
     const { id: rawId } = await context.params;
-    const record = await updateRecord(readId(rawId), readRecordInput(await request.json()));
+    const record = await updateRecord(readId(rawId), await readRecordInput(await request.json()));
     if (!record) return Response.json({ error: "Sales record not found." }, { status: 404 });
     return Response.json({ record });
   } catch (error) {
