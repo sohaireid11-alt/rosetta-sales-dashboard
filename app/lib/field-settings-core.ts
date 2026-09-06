@@ -21,8 +21,11 @@ export type FieldSettings = { lists: FieldLists; labels: UiLabels };
 export type NormalizedFieldOption = { value: string; label: string; sortOrder: number; isActive: boolean };
 
 export class FieldSettingsError extends Error {
-  constructor(message: string, public readonly status = 400) {
+  readonly status: number;
+
+  constructor(message: string, status = 400) {
     super(message);
+    this.status = status;
   }
 }
 

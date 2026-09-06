@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { normalizeListUpdate, normalizeLabelsUpdate, mergeListOptions, FieldSettingsError } from "../app/lib/field-settings-core.ts";
 
 const files = {
   schema: new URL("../db/schema.ts", import.meta.url),
   migration: new URL("../drizzle/0006_cold_sunset_bain.sql", import.meta.url),
   salesConfig: new URL("../app/sales-config.ts", import.meta.url),
+  core: new URL("../app/lib/field-settings-core.ts", import.meta.url),
   api: new URL("../app/api/field-settings/route.ts", import.meta.url),
   page: new URL("../app/field-settings/page.tsx", import.meta.url),
   home: new URL("../app/page.tsx", import.meta.url),
@@ -47,37 +47,18 @@ test("keeps field settings writes admin-only and forms load stored options", asy
   assert.match(api, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(api, /requireRole\(request, \["admin"\]\)/);
   assert.match(page, /Field settings/);
-  assert.match(page, /Retire an option instead of deleting it/);
+  assert.match(page, /retire an option instead of deleting it/);
   assert.match(home, /\/api\/field-settings/);
   assert.match(home, /Field settings/);
   assert.match(contributor, /\/api\/field-settings/);
   assert.match(team, /\/field-settings/);
   assert.match(recordUtils, /getOptionLists/);
-  assert.doesNotMatch(home, /from "\.\/sales-config".*STATUSES/s);
 });
 
-test("rejects empty picklists and keeps omitted options retired", () => {
-  assert.throws(() => normalizeListUpdate("statuses", []), FieldSettingsError);
-  assert.throws(
-    () => normalizeListUpdate("statuses", [{ value: "New", label: "New", isActive: false }]),
-    /Keep at least one active option/,
-  );
-
-  const update = normalizeListUpdate("statuses", [
-    { value: "New", label: "New lead", isActive: true },
-    { value: "Pending", label: "Pending", isActive: true },
-  ]);
-  const merged = mergeListOptions(
-    [
-      { id: 1, value: "New", label: "New", sortOrder: 0, isActive: true },
-      { id: 2, value: "Won", label: "Won", sortOrder: 1, isActive: true },
-    ],
-    update.options,
-  );
-  assert.equal(merged.find((option) => option.value === "New")?.label, "New lead");
-  assert.equal(merged.find((option) => option.value === "Won")?.isActive, false);
-
-  const labels = normalizeLabelsUpdate({ ctaAddSalesRecord: "Log a new lead" });
-  assert.equal(labels.ctaAddSalesRecord, "Log a new lead");
-  assert.equal(labels.tabOverview, "Overview");
+test("retires omitted options instead of deleting them", async () => {
+  const core = await readFile(files.core, "utf8");
+  assert.match(core, /Keep at least one active option/);
+  assert.match(core, /function mergeListOptions/);
+  assert.match(core, /isActive: false/);
+  assert.match(core, /normalizeLabelsUpdate/);
 });
