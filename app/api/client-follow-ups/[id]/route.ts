@@ -17,7 +17,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await requireRole(request, ["admin"]);
     const { id } = await context.params;
-    const followUp = await updateClientFollowUp(readId(id), readClientFollowUpInput(await request.json()));
+    const followUp = await updateClientFollowUp(readId(id), await readClientFollowUpInput(await request.json()));
     if (!followUp) return Response.json({ error: "Client follow-up not found." }, { status: 404 });
     return Response.json({ followUp });
   } catch (error) {

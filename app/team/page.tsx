@@ -172,7 +172,7 @@ export default function TeamPage() {
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">Team access</span></div>
-      <div className="topbar-actions"><a className="secondary-action" href="/">Dashboard</a><form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">Sign out</button></form></div>
+      <div className="topbar-actions"><a className="secondary-action" href="/">Dashboard</a><a className="secondary-action" href="/field-settings">Field settings</a><form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">Sign out</button></form></div>
     </header>
     <section className="team-workspace">
       <div className="page-heading"><div><p className="eyebrow">Admin controls</p><h1>Team access</h1><p className="heading-copy">Each person signs in with their own email and password. Contributors can only add new sales records.</p></div></div>

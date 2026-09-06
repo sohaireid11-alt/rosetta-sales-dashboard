@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const salesRecords = sqliteTable(
   "sales_records",
@@ -127,3 +127,27 @@ export const accessInvitations = sqliteTable(
     index("idx_access_invitations_active").on(table.revokedAt, table.acceptedAt),
   ]
 );
+
+export const appFieldOptions = sqliteTable(
+  "app_field_options",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    listKey: text("list_key").notNull(),
+    optionValue: text("option_value").notNull(),
+    optionLabel: text("option_label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_app_field_options_list_value").on(table.listKey, table.optionValue),
+    index("idx_app_field_options_list_sort").on(table.listKey, table.sortOrder),
+  ]
+);
+
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

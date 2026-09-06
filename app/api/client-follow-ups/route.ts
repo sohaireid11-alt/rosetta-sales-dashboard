@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await requireRole(request, ["admin"]);
-    const followUp = await createClientFollowUp(readClientFollowUpInput(await request.json()));
+    const followUp = await createClientFollowUp(await readClientFollowUpInput(await request.json()));
     return Response.json({ followUp }, { status: 201 });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : error instanceof ClientFollowUpValidationError ? 400 : 500;

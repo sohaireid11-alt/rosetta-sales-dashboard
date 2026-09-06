@@ -1,8 +1,9 @@
+import { getOptionLists } from "../../field-settings/field-settings-utils";
 import {
   RecordValidationError,
   errorMessage,
   importRecords,
-  readRecordInput,
+  parseRecordInput,
 } from "../record-utils";
 import { AccessError, requireRole } from "../../../lib/access";
 
@@ -19,7 +20,8 @@ export async function POST(request: Request) {
       throw new RecordValidationError(`Import up to ${maximumImportRows} records at a time.`);
     }
 
-    const records = payload.records.map(readRecordInput);
+    const lists = await getOptionLists();
+    const records = payload.records.map((record) => parseRecordInput(record, lists));
     const result = await importRecords(records);
     return Response.json(result, { status: 201 });
   } catch (error) {

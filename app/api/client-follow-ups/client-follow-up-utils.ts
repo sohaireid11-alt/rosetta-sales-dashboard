@@ -1,4 +1,4 @@
-import { FOLLOW_UP_ACTIONS, RELATIONSHIP_TYPES, SATISFACTION_STATUSES } from "../../sales-config";
+import { getOptionLists } from "../field-settings/field-settings-utils";
 import { getDatabase } from "../../../db";
 
 export type ClientFollowUp = {
@@ -40,31 +40,32 @@ function date(value: unknown, label: string) {
   return valueText;
 }
 
-function option<T extends readonly string[]>(value: unknown, options: T, label: string) {
+function option(value: unknown, options: readonly string[], label: string) {
   const text = requiredText(value, label, 120);
-  if (!options.includes(text as T[number])) throw new ClientFollowUpValidationError(`Choose a valid ${label.toLowerCase()}.`);
+  if (!options.includes(text)) throw new ClientFollowUpValidationError(`Choose a valid ${label.toLowerCase()}.`);
   return text;
 }
 
-export function readClientFollowUpInput(payload: unknown): ClientFollowUpInput {
+export async function readClientFollowUpInput(payload: unknown): Promise<ClientFollowUpInput> {
   if (!payload || typeof payload !== "object") throw new ClientFollowUpValidationError("A client follow-up is required.");
   const data = payload as Record<string, unknown>;
+  const lists = await getOptionLists();
   const rawId = data.salesRecordId;
   const salesRecordId = rawId === "" || rawId === null || rawId === undefined ? null : Number(rawId);
   if (salesRecordId !== null && (!Number.isInteger(salesRecordId) || salesRecordId < 1)) {
     throw new ClientFollowUpValidationError("Choose a valid linked sales record.");
   }
   const nextAction = optionalText(data.nextAction, "Next action", 120);
-  if (nextAction && !FOLLOW_UP_ACTIONS.includes(nextAction as (typeof FOLLOW_UP_ACTIONS)[number])) {
+  if (nextAction && !lists.followUpActions.includes(nextAction)) {
     throw new ClientFollowUpValidationError("Choose a valid next action.");
   }
   return {
     salesRecordId,
     clientName: requiredText(data.clientName, "Client name"),
-    relationshipType: option(data.relationshipType, RELATIONSHIP_TYPES, "Relationship type"),
+    relationshipType: option(data.relationshipType, lists.relationshipTypes, "Relationship type"),
     lastEngagementAt: date(data.lastEngagementAt, "Last service date"),
     lastCheckInAt: date(data.lastCheckInAt, "Last satisfaction check-in"),
-    satisfactionStatus: option(data.satisfactionStatus, SATISFACTION_STATUSES, "Satisfaction status"),
+    satisfactionStatus: option(data.satisfactionStatus, lists.satisfactionStatuses, "Satisfaction status"),
     nextFollowUpAt: date(data.nextFollowUpAt, "Next follow-up date"),
     nextAction,
     expansionOpportunity: optionalText(data.expansionOpportunity, "Expansion opportunity", 1_000),
