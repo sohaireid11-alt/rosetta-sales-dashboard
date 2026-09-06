@@ -14,5 +14,6 @@ test("keeps the dashboard and field settings pages in the app source", async () 
   assert.match(page, /export default function Home/);
   assert.match(page, /\/api\/field-settings/);
   assert.match(settings, /export default function FieldSettingsPage/);
+  assert.match(settings, /Admin Control Center/);
   assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
 });

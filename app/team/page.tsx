@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { AccessGate } from "../access-gate";
+import { defaultFieldSettings, type FieldSettings } from "../lib/field-settings-core";
 
 type AppRole = "admin" | "contributor";
 type Session = {
@@ -33,6 +34,7 @@ function newTemporaryPassword() {
 
 export default function TeamPage() {
   const [session, setSession] = useState<Session | null>(null);
+  const [labels, setLabels] = useState(defaultFieldSettings().labels);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,6 +55,11 @@ export default function TeamPage() {
     const access = await accessResponse.json() as Session;
     setSession(access);
     if (access.user?.role !== "admin") return;
+    const settingsResponse = await fetch("/api/field-settings", { cache: "no-store" });
+    if (settingsResponse.ok) {
+      const settings = await settingsResponse.json() as FieldSettings;
+      if (settings.labels) setLabels({ ...defaultFieldSettings().labels, ...settings.labels });
+    }
     const usersResponse = await fetch("/api/users", { cache: "no-store" });
     const payload = await usersResponse.json() as { users?: ManagedUser[]; error?: string };
     if (!usersResponse.ok) throw new Error(payload.error ?? "Unable to load accounts.");
@@ -171,45 +178,45 @@ export default function TeamPage() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">Team access</span></div>
-      <div className="topbar-actions"><a className="secondary-action" href="/">Dashboard</a><a className="secondary-action" href="/field-settings">Field settings</a><form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">Sign out</button></form></div>
+      <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{labels.teamProductName}</span></div>
+      <div className="topbar-actions"><a className="secondary-action" href="/">{labels.navDashboard}</a><a className="secondary-action" href="/admin">{labels.navAdminControls}</a><form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">{labels.navSignOut}</button></form></div>
     </header>
     <section className="team-workspace">
-      <div className="page-heading"><div><p className="eyebrow">Admin controls</p><h1>Team access</h1><p className="heading-copy">Each person signs in with their own email and password. Contributors can only add new sales records.</p></div></div>
+      <div className="page-heading"><div><p className="eyebrow">{labels.teamEyebrow}</p><h1>{labels.teamHeading}</h1><p className="heading-copy">{labels.teamCopy}</p></div></div>
       {notice ? <div className="notice" role="status">{notice}</div> : null}
       {error ? <div className="notice is-error" role="alert">{error}</div> : null}
       <section className="team-grid">
         <form className="team-invite-panel" onSubmit={createAccount}>
-          <h2>Add team member</h2>
-          <label>Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Team member name" /></label>
-          <label>Business email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" /></label>
-          <label>Access role<select value={role} onChange={(event) => setRole(event.target.value as AppRole)}><option value="contributor">Contributor - add leads only</option><option value="admin">Admin - full dashboard access</option></select></label>
-          <label>Temporary password<input required type="text" minLength={12} value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} placeholder="At least 12 characters" /></label>
-          <button type="button" className="secondary-action" onClick={() => setTemporaryPassword(newTemporaryPassword())}>Generate temporary password</button>
-          <button className="primary-action" type="submit" disabled={isSaving}>{isSaving ? "Saving..." : "Create account"}</button>
+          <h2>{labels.teamAddMember}</h2>
+          <label>{labels.teamFieldName}<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Team member name" /></label>
+          <label>{labels.teamFieldEmail}<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" /></label>
+          <label>{labels.teamFieldRole}<select value={role} onChange={(event) => setRole(event.target.value as AppRole)}><option value="contributor">{labels.teamRoleContributor}</option><option value="admin">{labels.teamRoleAdmin}</option></select></label>
+          <label>{labels.teamFieldTempPassword}<input required type="text" minLength={12} value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} placeholder="At least 12 characters" /></label>
+          <button type="button" className="secondary-action" onClick={() => setTemporaryPassword(newTemporaryPassword())}>{labels.teamGeneratePassword}</button>
+          <button className="primary-action" type="submit" disabled={isSaving}>{isSaving ? "Saving..." : labels.teamCreateAccount}</button>
         </form>
         <section className="team-list-panel">
-          <div className="panel-heading"><h2>Accounts</h2><span className="table-note">{users.filter((user) => user.isActive).length} active</span></div>
+          <div className="panel-heading"><h2>{labels.teamAccounts}</h2><span className="table-note">{users.filter((user) => user.isActive).length} {labels.teamActive.toLowerCase()}</span></div>
           <div className="team-list">
             {users.length ? users.map((user) => {
               const isCurrentUser = user.id === session.user?.id;
               return <div className="team-member" key={user.id}>
                 <div><strong>{user.displayName}</strong><span>{user.email}</span><small>{user.role === "admin" ? "Administrator" : "Contributor"} - Last sign-in {dateLabel(user.lastLoginAt)}</small></div>
                 <div className="team-member-actions">
-                  <span className={`access-status access-${user.isActive ? "active" : "revoked"}`}>{user.isActive ? "Active" : "Removed"}</span>
+                  <span className={`access-status access-${user.isActive ? "active" : "revoked"}`}>{user.isActive ? labels.teamActive : labels.teamRemoved}</span>
                   {user.isActive && !isCurrentUser ? <>
-                    {editingAccessUserId === user.id ? <div className="access-editor"><label className="role-control">Access role<select value={editedRole} onChange={(event) => setEditedRole(event.target.value as AppRole)} disabled={isSaving}><option value="contributor">Contributor - add leads only</option><option value="admin">Administrator - full dashboard</option></select></label><div className="access-editor-actions"><button className="primary-action compact-action" type="button" onClick={() => void updateAccountRole(user, editedRole)} disabled={isSaving}>Save access</button><button className="secondary-action compact-action" type="button" onClick={() => setEditingAccessUserId(null)} disabled={isSaving}>Cancel</button></div></div> : <button className="secondary-action compact-action" type="button" onClick={() => { setEditingAccessUserId(user.id); setEditedRole(user.role); setResettingUserId(null); }}>Edit access</button>}
-                    <button className="secondary-action compact-action" type="button" onClick={() => { setResettingUserId(user.id); setResetPassword(""); }}>Reset password</button>
-                    <button className="delete-button" type="button" onClick={() => void removeAccount(user)}>Remove</button>
+                    {editingAccessUserId === user.id ? <div className="access-editor"><label className="role-control">{labels.teamFieldRole}<select value={editedRole} onChange={(event) => setEditedRole(event.target.value as AppRole)} disabled={isSaving}><option value="contributor">{labels.teamRoleContributor}</option><option value="admin">{labels.teamRoleAdmin}</option></select></label><div className="access-editor-actions"><button className="primary-action compact-action" type="button" onClick={() => void updateAccountRole(user, editedRole)} disabled={isSaving}>{labels.teamSaveAccess}</button><button className="secondary-action compact-action" type="button" onClick={() => setEditingAccessUserId(null)} disabled={isSaving}>{labels.teamCancel}</button></div></div> : <button className="secondary-action compact-action" type="button" onClick={() => { setEditingAccessUserId(user.id); setEditedRole(user.role); setResettingUserId(null); }}>{labels.teamEditAccess}</button>}
+                    <button className="secondary-action compact-action" type="button" onClick={() => { setResettingUserId(user.id); setResetPassword(""); }}>{labels.teamResetPassword}</button>
+                    <button className="delete-button" type="button" onClick={() => void removeAccount(user)}>{labels.teamRemove}</button>
                   </> : null}
                 </div>
                 {resettingUserId === user.id ? <form className="password-reset-form" onSubmit={(event) => void resetAccountPassword(event, user)}><label>New temporary password<input required minLength={12} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label><button type="button" className="secondary-action" onClick={() => setResetPassword(newTemporaryPassword())}>Generate</button><button type="submit" className="primary-action" disabled={isSaving}>Save password</button></form> : null}
               </div>;
-            }) : <p className="empty-copy">No accounts have been added yet.</p>}
+            }) : <p className="empty-copy">{labels.teamEmpty}</p>}
           </div>
         </section>
       </section>
-      <section className="password-panel"><div><p className="eyebrow">Your account</p><h2>Change your password</h2></div><form className="password-change-form" onSubmit={changePassword}><label>Current password<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>New password<input required type="password" minLength={12} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label><button className="primary-action" type="submit" disabled={isSaving}>Change password</button></form></section>
+      <section className="password-panel"><div><p className="eyebrow">{labels.teamChangePasswordEyebrow}</p><h2>{labels.teamChangePasswordHeading}</h2></div><form className="password-change-form" onSubmit={changePassword}><label>{labels.teamCurrentPassword}<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>{labels.teamNewPassword}<input required type="password" minLength={12} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label><button className="primary-action" type="submit" disabled={isSaving}>{labels.teamChangePassword}</button></form></section>
     </section>
   </main>;
 }

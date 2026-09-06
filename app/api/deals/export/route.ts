@@ -1,5 +1,10 @@
 import { errorMessage, listRecords } from "../record-utils";
+import { parseStoredValues } from "../../../lib/field-values";
 import { AccessError, requireRole } from "../../../lib/access";
+
+function exportChoice(value: string | null) {
+  return parseStoredValues(value).join("; ");
+}
 
 function csvCell(value: string | number | null) {
   const text = value === null ? "" : String(value);
@@ -38,23 +43,23 @@ export async function GET(request: Request) {
       ...records.map((record) => [
         record.leadName,
         record.company,
-        record.organizationType,
-        record.sourceType,
+        exportChoice(record.organizationType),
+        exportChoice(record.sourceType),
         record.referredBy,
         record.requestReceivedBy,
-        record.service,
-        record.serviceDelivery,
-        record.interpretationMode,
-        record.opportunityType,
-        record.stage,
+        exportChoice(record.service),
+        exportChoice(record.serviceDelivery),
+        exportChoice(record.interpretationMode),
+        exportChoice(record.opportunityType),
+        exportChoice(record.stage),
         record.contactName,
         record.contactTitle,
         record.contactEmail,
         record.contactPhone,
-        record.meetingStage,
+        exportChoice(record.meetingStage),
         record.nextMeetingAt,
         record.nextFollowUpAt,
-        record.nextAction,
+        exportChoice(record.nextAction),
         (record.estimatedRevenueCents / 100).toFixed(2),
         record.createdAt,
         record.closedAt,
