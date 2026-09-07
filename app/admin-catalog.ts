@@ -160,7 +160,7 @@ export const COMING_NEXT = [
   { title: "Sign-in page wording", detail: "The sign-in screen loads before settings, so its copy stays in code until a public labels endpoint exists." },
   { title: "Chart formulas and metric math", detail: "Metric titles are editable now. Changing how booked revenue or win rate is calculated still needs a developer." },
   { title: "CSV column mapping", detail: "Import and export keep working. Mapping spreadsheet headers to fields from this screen is next." },
-  { title: "Email and notification templates", detail: "Account invites and password notes are still sent by admins directly. Templates will land here." },
+  { title: "Email and notification templates", detail: "Account invites and password notes are still sent by admins directly. Templates will land here. Google Calendar follow-up sync is already on the Calendar tab." },
 ] as const;
 
 export function defaultFieldsByEntity(entity: FieldEntity) {

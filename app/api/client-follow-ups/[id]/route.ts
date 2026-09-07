@@ -8,6 +8,7 @@ import {
 } from "../client-follow-up-utils";
 import { AccessError, requireRole } from "../../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../../lib/audit";
+import { deleteFollowUpCalendarSafe, syncClientCareCalendar } from "../../../lib/calendar-sync";
 
 function readId(value: string) {
   const id = Number(value);
@@ -28,6 +29,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       entityId: followUp.id,
       summary: `${actorLabel(user)} updated client-care record ${followUp.clientName}`,
     });
+    await syncClientCareCalendar(followUp);
     return Response.json({ followUp });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : error instanceof ClientFollowUpValidationError ? 400 : 500;
@@ -50,6 +52,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       entityId: existing.id,
       summary: `${actorLabel(user)} removed client-care record ${existing.clientName}`,
     });
+    await deleteFollowUpCalendarSafe("client_follow_up", existing.id);
     return new Response(null, { status: 204 });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;

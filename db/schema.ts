@@ -212,3 +212,31 @@ export const appViewColumns = sqliteTable(
     index("idx_app_view_columns_view_sort").on(table.viewKey, table.sortOrder),
   ]
 );
+
+export const calendarEventMappings = sqliteTable(
+  "calendar_event_mappings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    googleEventId: text("google_event_id").notNull(),
+    calendarId: text("calendar_id").notNull(),
+    followUpDate: text("follow_up_date"),
+    lastSyncedAt: text("last_synced_at").notNull(),
+    lastError: text("last_error"),
+  },
+  (table) => [
+    uniqueIndex("idx_calendar_event_mappings_entity").on(table.entityType, table.entityId),
+  ]
+);
+
+export const googleOauthConnections = sqliteTable("google_oauth_connections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  accountEmail: text("account_email").notNull().default(""),
+  encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+  encryptedAccessToken: text("encrypted_access_token").notNull().default(""),
+  accessTokenExpiresAt: text("access_token_expires_at"),
+  scopes: text("scopes").notNull().default(""),
+  connectedAt: text("connected_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

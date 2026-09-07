@@ -1,6 +1,7 @@
 import { RecordValidationError, createRecord, errorMessage, listRecords, readRecordInput } from "./record-utils";
 import { AccessError, requireRole } from "../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../lib/audit";
+import { syncSalesFollowUpCalendar } from "../../lib/calendar-sync";
 
 export async function GET(request: Request) {
   try {
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
         entityId: record.id,
         summary: `${actorLabel(user)} added sales record ${record.leadName}`,
       });
+      await syncSalesFollowUpCalendar(record);
     }
     return Response.json({ record }, { status: 201 });
   } catch (error) {

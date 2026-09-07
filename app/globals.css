@@ -181,6 +181,15 @@ td small { display:block; margin-top:3px; color:var(--muted); font-size:12px; }
 .roadmap-list { display:grid; gap:12px; }
 .roadmap-item { padding:14px; background:#f7f9fc; border:1px solid var(--line); }
 .roadmap-item h3 { margin:0 0 6px; font-size:14px; }
+.calendar-status { display:grid; gap:10px; margin:0 0 18px; padding:16px; background:#f7f9fc; border:1px solid var(--line); }
+.calendar-status-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.calendar-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.calendar-actions a.primary-action { text-decoration:none; }
+.calendar-settings-grid { margin-top:16px; }
+.calendar-templates { display:grid; gap:14px; margin-top:16px; }
+.calendar-templates label { display:grid; gap:6px; color:#3c4c66; font-size:13px; font-weight:760; }
+.calendar-templates textarea { min-height:120px; }
+.calendar-sync-error { color:var(--danger); font-weight:700; }
 .multi-select { display:grid; gap:8px; padding:10px; background:#f7f9fc; border:1px solid #d5deea; border-radius:5px; }
 .multi-select-option { display:flex; align-items:center; gap:8px; font-weight:650; }
 .multi-select-option input { width:auto; min-height:0; }

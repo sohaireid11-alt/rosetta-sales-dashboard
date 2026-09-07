@@ -64,6 +64,13 @@
       "when": 1788771670901,
       "tag": "0008_audit_events",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788798600000,
+      "tag": "0009_google_calendar_sync",
+      "breakpoints": true
     }
   ]
 }

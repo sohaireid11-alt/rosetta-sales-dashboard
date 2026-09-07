@@ -17,7 +17,7 @@ export class AccessError extends Error {
   constructor(message: string, public readonly status: number) { super(message); }
 }
 
-function runtimeValue(name: string) {
+export function runtimeValue(name: string) {
   const value = (env as unknown as Record<string, string | undefined>)[name]?.trim();
   return value || null;
 }
@@ -57,12 +57,12 @@ function sameText(left: string, right: string) {
   return difference === 0;
 }
 
-async function seal<T>(payload: T) {
+export async function seal<T>(payload: T) {
   const body = base64Url(encoder.encode(JSON.stringify(payload)));
   return body + "." + (await sign(body));
 }
 
-async function unseal<T>(value: string | undefined) {
+export async function unseal<T>(value: string | undefined) {
   if (!value) return null;
   const [body, signature, extra] = value.split(".");
   if (!body || !signature || extra || !sameText(signature, await sign(body))) return null;
@@ -78,11 +78,11 @@ function readCookies(request: Request) {
   return values;
 }
 
-function setCookie(name: string, value: string, maxAge: number) {
+export function setCookie(name: string, value: string, maxAge: number) {
   return name + "=" + value + "; Path=/; Max-Age=" + maxAge + "; HttpOnly; Secure; SameSite=Lax";
 }
 
-function clearCookie(name: string) {
+export function clearCookie(name: string) {
   return name + "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax";
 }
 

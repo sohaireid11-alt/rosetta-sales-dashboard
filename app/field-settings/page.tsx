@@ -24,6 +24,11 @@ import {
   type UiLabels,
 } from "../lib/field-settings-core";
 import {
+  defaultCalendarSyncSettings,
+  publicCalendarSettings,
+  type CalendarStatusKind,
+} from "../lib/calendar-sync-core";
+import {
   FIELD_LIST_KEYS,
   FIELD_LIST_META,
   MAX_HISTORY_LOOKBACK_DAYS,
@@ -43,7 +48,31 @@ type Session = {
   configured: boolean;
   user: { id: number; email: string; displayName: string; role: AppRole } | null;
 };
-type AdminTab = "fields" | "picklists" | "tables" | "copy" | "workspace" | "team" | "roadmap";
+type AdminTab = "fields" | "picklists" | "tables" | "copy" | "workspace" | "calendar" | "team" | "roadmap";
+type CalendarSettingsDraft = ReturnType<typeof publicCalendarSettings>;
+type CalendarPublicStatus = {
+  settings: CalendarSettingsDraft;
+  connection: {
+    configured: boolean;
+    connected: boolean;
+    connectedEmail: string | null;
+    connectedAt: string | null;
+  };
+  status: {
+    kind: CalendarStatusKind;
+    lastSyncAt: string | null;
+    lastSyncError: string | null;
+  };
+  error?: string;
+};
+
+function defaultCalendarStatus(): CalendarPublicStatus {
+  return {
+    settings: publicCalendarSettings(defaultCalendarSyncSettings()),
+    connection: { configured: false, connected: false, connectedEmail: null, connectedAt: null },
+    status: { kind: "not_configured", lastSyncAt: null, lastSyncError: null },
+  };
+}
 
 const ENTITY_TITLES: Record<FieldEntity, string> = {
   sales_record: "Sales records & contributor form",
@@ -92,6 +121,8 @@ export default function FieldSettingsPage() {
   const [settings, setSettings] = useState<FieldSettings>(defaultFieldSettings);
   const [draft, setDraft] = useState<FieldSettings>(defaultFieldSettings);
   const [tab, setTab] = useState<AdminTab>("fields");
+  const [calendar, setCalendar] = useState<CalendarPublicStatus>(defaultCalendarStatus);
+  const [calendarDraft, setCalendarDraft] = useState<CalendarSettingsDraft>(defaultCalendarStatus().settings);
   const [newLabels, setNewLabels] = useState<Record<FieldListKey, string>>(
     Object.fromEntries(FIELD_LIST_KEYS.map((key) => [key, ""])) as Record<FieldListKey, string>
   );
@@ -106,7 +137,10 @@ export default function FieldSettingsPage() {
     const access = await accessResponse.json() as Session;
     setSession(access);
     if (access.user?.role !== "admin") return;
-    const settingsResponse = await fetch("/api/field-settings", { cache: "no-store" });
+    const [settingsResponse, calendarResponse] = await Promise.all([
+      fetch("/api/field-settings", { cache: "no-store" }),
+      fetch("/api/calendar", { cache: "no-store" }),
+    ]);
     const payload = await settingsResponse.json() as FieldSettings & { error?: string };
     if (!settingsResponse.ok) throw new Error(payload.error ?? "Unable to load admin settings.");
     const next = cloneSettings({
@@ -122,6 +156,22 @@ export default function FieldSettingsPage() {
     });
     setSettings(next);
     setDraft(cloneSettings(next));
+    const calendarPayload = await calendarResponse.json() as CalendarPublicStatus;
+    if (calendarResponse.ok) {
+      setCalendar(calendarPayload);
+      setCalendarDraft({ ...calendarPayload.settings });
+    }
+    const params = new URLSearchParams(window.location.search);
+    const calendarResult = params.get("calendar");
+    if (calendarResult) {
+      setTab("calendar");
+      if (calendarResult === "connected") setNotice(next.labels.calendarConnectedNotice);
+      if (calendarResult === "error") {
+        const reason = params.get("reason")?.trim();
+        setError(reason ? `${next.labels.calendarConnectFailedNotice} ${reason}` : next.labels.calendarConnectFailedNotice);
+      }
+      window.history.replaceState({}, "", "/admin");
+    }
   }
 
   useEffect(() => {
@@ -358,6 +408,47 @@ export default function FieldSettingsPage() {
     }
   }
 
+  async function saveCalendarSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingKey("calendar");
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch("/api/calendar", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(calendarDraft),
+      });
+      const payload = await response.json() as CalendarPublicStatus;
+      if (!response.ok) throw new Error(payload.error ?? "Unable to save calendar settings.");
+      setCalendar(payload);
+      setCalendarDraft({ ...payload.settings });
+      setNotice(settings.labels.calendarSavedNotice);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save calendar settings.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function disconnectCalendar() {
+    setSavingKey("calendar-disconnect");
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch("/api/calendar/disconnect", { method: "POST" });
+      const payload = await response.json() as CalendarPublicStatus;
+      if (!response.ok) throw new Error(payload.error ?? "Unable to disconnect Google Calendar.");
+      setCalendar(payload);
+      setCalendarDraft({ ...payload.settings });
+      setNotice(settings.labels.calendarDisconnectedNotice);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to disconnect Google Calendar.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
   function addReportPreset() {
     const label = newPresetLabel.trim();
     const days = Number(newPresetDays);
@@ -437,6 +528,7 @@ export default function FieldSettingsPage() {
     { id: "tables", label: "Tables" },
     { id: "copy", label: "Dashboard wording" },
     { id: "workspace", label: "History & reports" },
+    { id: "calendar", label: settings.labels.adminTabCalendar },
     { id: "team", label: "Team wording" },
     { id: "roadmap", label: "Coming next" },
   ];
@@ -458,7 +550,7 @@ export default function FieldSettingsPage() {
         <div>
           <p className="eyebrow">Admin Control Center</p>
           <h1>Change the dashboard yourself</h1>
-          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, report ranges, the custom date range, and the Back button. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
+          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, report ranges, the custom date range, the Back button, and Google Calendar sync. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
         </div>
       </div>
 
@@ -470,6 +562,7 @@ export default function FieldSettingsPage() {
           <li><strong>Rename a label or button:</strong> open Dashboard wording or Team wording, edit the text, and save that group. Settings menu items live under Navigation and chrome.</li>
           <li><strong>Hide a field or table column:</strong> turn Show on forms off (Form fields) or uncheck a column (Tables), then save.</li>
           <li><strong>Change History or Reports without a developer:</strong> open History & reports to set lookback days, CSV ranges, custom date-range visibility, and the Back control. New features ship with admin-editable config on this page.</li>
+          <li><strong>Sync follow-ups to Google Calendar:</strong> open Calendar, connect Danyal's Google account, edit the event title and description templates, then turn sync on. Saving a lead still works if Google is disconnected.</li>
         </ol>
       </section>
 
@@ -681,7 +774,7 @@ export default function FieldSettingsPage() {
           <div>
             <p className="eyebrow">Dashboard wording</p>
             <h2>Tabs, metrics, empty states, and buttons</h2>
-            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, and shared chrome including the Settings menu and Back button. Field labels are under Form fields. History lookback days, report ranges, custom date-range visibility, and Back visibility are under History & reports.</p>
+            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, Calendar, and shared chrome including the Settings menu and Back button. Field labels are under Form fields. History lookback days, report ranges, custom date-range visibility, and Back visibility are under History & reports. Google connection, enable, calendar id, and templates are under Calendar.</p>
           </div>
           <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "copy" ? "Saving..." : "Save dashboard wording"}</button>
         </div>
@@ -790,6 +883,98 @@ export default function FieldSettingsPage() {
           </div>
         </form>
       </> : null}
+
+      {tab === "calendar" ? <form className="settings-panel" onSubmit={(event) => void saveCalendarSettings(event)}>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{settings.labels.calendarSectionEyebrow}</p>
+            <h2>{settings.labels.calendarSectionHeading}</h2>
+            <p className="table-note">{settings.labels.calendarSectionCopy}</p>
+          </div>
+          <button className="primary-action" type="submit" disabled={savingKey !== null}>
+            {savingKey === "calendar" ? settings.labels.formSaving : settings.labels.calendarSaveButton}
+          </button>
+        </div>
+        <div className="calendar-status">
+          <div className="calendar-status-row">
+            <span className={`access-status ${calendar.connection.connected ? "access-active" : "access-revoked"}`}>
+              {calendar.status.kind === "not_configured" ? settings.labels.calendarStatusNotConfigured
+                : calendar.status.kind === "enabled_disconnected" ? settings.labels.calendarStatusEnabledDisconnected
+                  : calendar.status.kind === "connected_mismatch" ? settings.labels.calendarStatusMismatch
+                    : calendar.connection.connected ? settings.labels.calendarStatusConnected
+                      : settings.labels.calendarStatusNotConnected}
+            </span>
+            {calendar.connection.connectedEmail ? <span className="table-note">{settings.labels.calendarConnectedAsPrefix} {calendar.connection.connectedEmail}</span> : null}
+          </div>
+          {!calendar.connection.configured ? <p className="table-note">{settings.labels.calendarOauthHelp}</p> : null}
+          {calendar.status.lastSyncAt ? <p className="table-note">{settings.labels.calendarLastSyncLabel}: {calendar.status.lastSyncAt}</p> : null}
+          {calendar.status.lastSyncError ? <p className="table-note calendar-sync-error">{settings.labels.calendarLastErrorLabel}: {calendar.status.lastSyncError}</p> : null}
+          <div className="calendar-actions">
+            {calendar.connection.configured && !calendar.connection.connected ? (
+              <a className="primary-action compact-action" href="/api/calendar/oauth/start">{settings.labels.calendarConnectButton}</a>
+            ) : null}
+            {calendar.connection.connected ? (
+              <button className="delete-button" type="button" onClick={() => void disconnectCalendar()} disabled={savingKey !== null}>
+                {savingKey === "calendar-disconnect" ? settings.labels.formSaving : settings.labels.calendarDisconnectButton}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="field-editor-flags">
+          <label className="flag-toggle">
+            <input
+              type="checkbox"
+              checked={calendarDraft.enabled}
+              onChange={(event) => setCalendarDraft((current) => ({ ...current, enabled: event.target.checked }))}
+            />
+            {settings.labels.calendarEnableLabel}
+          </label>
+        </div>
+        <p className="table-note">{settings.labels.calendarEnableHint}</p>
+        <div className="labels-grid calendar-settings-grid">
+          <label>
+            {settings.labels.calendarTargetEmailLabel}
+            <input
+              value={calendarDraft.targetAccountEmail}
+              onChange={(event) => setCalendarDraft((current) => ({ ...current, targetAccountEmail: event.target.value }))}
+            />
+            <small>{settings.labels.calendarTargetEmailHint}</small>
+          </label>
+          <label>
+            {settings.labels.calendarIdLabel}
+            <input
+              value={calendarDraft.calendarId}
+              onChange={(event) => setCalendarDraft((current) => ({ ...current, calendarId: event.target.value }))}
+            />
+            <small>{settings.labels.calendarIdHint}</small>
+          </label>
+          <label>
+            {settings.labels.calendarTimezoneLabel}
+            <input
+              value={calendarDraft.timezone}
+              onChange={(event) => setCalendarDraft((current) => ({ ...current, timezone: event.target.value }))}
+            />
+            <small>{settings.labels.calendarTimezoneHint}</small>
+          </label>
+        </div>
+        <div className="calendar-templates">
+          <label>
+            {settings.labels.calendarTitleTemplateLabel}
+            <input
+              value={calendarDraft.titleTemplate}
+              onChange={(event) => setCalendarDraft((current) => ({ ...current, titleTemplate: event.target.value }))}
+            />
+          </label>
+          <label>
+            {settings.labels.calendarDescriptionTemplateLabel}
+            <textarea
+              value={calendarDraft.descriptionTemplate}
+              onChange={(event) => setCalendarDraft((current) => ({ ...current, descriptionTemplate: event.target.value }))}
+            />
+            <small>{settings.labels.calendarTemplateHint}</small>
+          </label>
+        </div>
+      </form> : null}
 
       {tab === "team" ? <form className="settings-panel labels-panel" onSubmit={(event) => void saveLabels(event, "team")}>
         <div className="panel-heading">

@@ -7,6 +7,7 @@ import {
 } from "./client-follow-up-utils";
 import { AccessError, requireRole } from "../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../lib/audit";
+import { syncClientCareCalendar } from "../../lib/calendar-sync";
 
 export async function GET(request: Request) {
   try {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
         entityId: followUp.id,
         summary: `${actorLabel(user)} added client-care record ${followUp.clientName}`,
       });
+      await syncClientCareCalendar(followUp);
     }
     return Response.json({ followUp }, { status: 201 });
   } catch (error) {
