@@ -11,6 +11,7 @@ import {
   replaceSections,
   replaceUiLabels,
   replaceViewColumns,
+  replaceWorkspaceFlags,
 } from "./field-settings-utils";
 
 export async function GET(request: Request) {
@@ -38,6 +39,8 @@ async function saveSettings(request: Request) {
     sections?: unknown;
     historyLookbackDays?: unknown;
     reportPresets?: unknown;
+    customReportRangeEnabled?: unknown;
+    showBackControl?: unknown;
   };
   if (payload.labels && typeof payload.labels === "object") {
     return Response.json(await replaceUiLabels(payload.labels));
@@ -50,6 +53,9 @@ async function saveSettings(request: Request) {
   }
   if (payload.reportPresets) {
     return Response.json(await replaceReportPresets(payload.reportPresets));
+  }
+  if (payload.customReportRangeEnabled !== undefined || payload.showBackControl !== undefined) {
+    return Response.json(await replaceWorkspaceFlags(payload));
   }
   if (payload.viewKey && payload.columns) {
     return Response.json(await replaceViewColumns(payload.viewKey, payload.columns));

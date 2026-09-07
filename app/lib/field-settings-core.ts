@@ -14,8 +14,10 @@ import {
   type ViewKey,
 } from "../admin-catalog";
 import {
+  DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
   DEFAULT_HISTORY_LOOKBACK_DAYS,
   DEFAULT_REPORT_PRESETS,
+  DEFAULT_SHOW_BACK_CONTROL,
   DEFAULT_UI_LABELS,
   FIELD_LIST_DEFAULTS,
   FIELD_LIST_KEYS,
@@ -48,6 +50,8 @@ export type FieldSettings = {
   sections: FieldSections;
   historyLookbackDays: number;
   reportPresets: ReportPreset[];
+  customReportRangeEnabled: boolean;
+  showBackControl: boolean;
 };
 export type NormalizedFieldOption = { value: string; label: string; sortOrder: number; isActive: boolean };
 
@@ -110,6 +114,8 @@ export function defaultFieldSettings(): FieldSettings {
     sections: defaultFieldSections(),
     historyLookbackDays: DEFAULT_HISTORY_LOOKBACK_DAYS,
     reportPresets: DEFAULT_REPORT_PRESETS.map((preset) => ({ ...preset })),
+    customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
+    showBackControl: DEFAULT_SHOW_BACK_CONTROL,
   };
 }
 
@@ -434,4 +440,85 @@ export function historyCutoffIso(days: number, now = new Date()) {
 
 export function reportExportFilename(days: number) {
   return `rosetta-sales-last-${days}-days.csv`;
+}
+
+export function customRangeExportFilename(start: string, end: string) {
+  return `rosetta-sales-${start}-to-${end}.csv`;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function leadDateKey(value: string) {
+  return value.slice(0, 10);
+}
+
+export function parseIsoDate(value: unknown, label: string, required = true) {
+  const date = typeof value === "string" ? value.trim() : "";
+  if (!date) {
+    if (required) throw new FieldSettingsError(`${label} is required.`);
+    return null;
+  }
+  if (!ISO_DATE.test(date)) throw new FieldSettingsError(`${label} must be a valid date.`);
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) {
+    throw new FieldSettingsError(`${label} must be a valid date.`);
+  }
+  return date;
+}
+
+export function normalizeCustomDateRange(startValue: unknown, endValue: unknown) {
+  const start = parseIsoDate(startValue, "From date");
+  const end = parseIsoDate(endValue, "To date");
+  if (!start || !end) throw new FieldSettingsError("Choose a From date and a To date, with From on or before To.");
+  if (start > end) throw new FieldSettingsError("Choose a From date and a To date, with From on or before To.");
+  return { start, end };
+}
+
+export function isCustomDateRangeValid(startValue: string, endValue: string) {
+  try {
+    normalizeCustomDateRange(startValue, endValue);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeBooleanFlag(value: unknown, fallback: boolean) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "boolean") return value;
+  if (value === "true" || value === 1 || value === "1") return true;
+  if (value === "false" || value === 0 || value === "0") return false;
+  return fallback;
+}
+
+export function normalizeWorkspaceFlags(value: unknown, current?: Pick<FieldSettings, "customReportRangeEnabled" | "showBackControl">) {
+  const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const fallback = current ?? {
+    customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
+    showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+  };
+  return {
+    customReportRangeEnabled: normalizeBooleanFlag(source.customReportRangeEnabled, fallback.customReportRangeEnabled),
+    showBackControl: normalizeBooleanFlag(source.showBackControl, fallback.showBackControl),
+  };
+}
+
+export function parseStoredWorkspaceFlags(raw: string | null | undefined) {
+  if (!raw) {
+    return {
+      customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
+      showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+    };
+  }
+  try {
+    return normalizeWorkspaceFlags(JSON.parse(raw) as unknown);
+  } catch {
+    return {
+      customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
+      showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+    };
+  }
 }

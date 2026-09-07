@@ -1,5 +1,5 @@
 import { parseStoredValues } from "../../lib/field-values";
-import { leadDateCutoff, reportExportFilename } from "../../lib/field-settings-core";
+import { customRangeExportFilename, leadDateCutoff, leadDateKey, reportExportFilename } from "../../lib/field-settings-core";
 import type { SalesRecord } from "./record-utils";
 
 export const EXPORT_COLUMNS = [
@@ -69,9 +69,17 @@ export function recordsToCsv(records: SalesRecord[]) {
 
 export function filterRecordsByLeadDateWindow(records: SalesRecord[], days: number, now = new Date()) {
   const cutoff = leadDateCutoff(days, now);
-  return records.filter((record) => record.createdAt >= cutoff);
+  return records.filter((record) => leadDateKey(record.createdAt) >= cutoff);
 }
 
-export function exportFilename(days?: number) {
+export function filterRecordsByLeadDateRange(records: SalesRecord[], start: string, end: string) {
+  return records.filter((record) => {
+    const leadDate = leadDateKey(record.createdAt);
+    return leadDate >= start && leadDate <= end;
+  });
+}
+
+export function exportFilename(days?: number, range?: { start: string; end: string }) {
+  if (range) return customRangeExportFilename(range.start, range.end);
   return days ? reportExportFilename(days) : "rosetta-sales-records.csv";
 }

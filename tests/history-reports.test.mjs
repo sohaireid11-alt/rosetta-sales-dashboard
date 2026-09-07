@@ -11,6 +11,7 @@ const files = {
   api: new URL("../app/api/field-settings/route.ts", import.meta.url),
   admin: new URL("../app/field-settings/page.tsx", import.meta.url),
   menu: new URL("../app/settings-menu.tsx", import.meta.url),
+  back: new URL("../app/back-control.tsx", import.meta.url),
   home: new URL("../app/page.tsx", import.meta.url),
   team: new URL("../app/team/page.tsx", import.meta.url),
   contributor: new URL("../app/contributor-form.tsx", import.meta.url),
@@ -68,18 +69,32 @@ test("stores a durable audit log and admin-editable history/report config", asyn
   assert.match(salesConfig, /navSettings/);
   assert.match(salesConfig, /navHistory/);
   assert.match(salesConfig, /navReports/);
+  assert.match(salesConfig, /navBack/);
   assert.match(salesConfig, /historyWindowHint/);
+  assert.match(salesConfig, /reportsCustomHeading/);
+  assert.match(salesConfig, /DEFAULT_CUSTOM_REPORT_RANGE_ENABLED = true/);
+  assert.match(salesConfig, /DEFAULT_SHOW_BACK_CONTROL = true/);
   assert.match(core, /historyLookbackDays/);
   assert.match(core, /reportPresets/);
+  assert.match(core, /customReportRangeEnabled/);
+  assert.match(core, /showBackControl/);
   assert.match(core, /normalizeHistoryLookbackDays/);
   assert.match(core, /normalizeReportPresets/);
+  assert.match(core, /normalizeWorkspaceFlags/);
+  assert.match(core, /customRangeExportFilename/);
   assert.match(utils, /history_lookback_days/);
   assert.match(utils, /report_presets/);
+  assert.match(utils, /workspace_flags/);
   assert.match(api, /replaceHistoryLookbackDays/);
   assert.match(api, /replaceReportPresets/);
+  assert.match(api, /replaceWorkspaceFlags/);
   assert.match(admin, /History & reports/);
   assert.match(admin, /Lookback window/);
   assert.match(admin, /CSV download ranges/);
+  assert.match(admin, /customReportRangeEnabled/);
+  assert.match(admin, /showBackControl/);
+  assert.match(admin, /Show custom From\/To date range on Reports/);
+  assert.match(admin, /Show Back on History, Reports, Team access, and Admin controls/);
   assert.match(admin, /no coding, GitHub, or Cloudflare dashboard needed/);
 });
 
@@ -109,6 +124,12 @@ test("replaces top-right chrome with a Settings menu", async () => {
   assert.match(admin, /SettingsMenu/);
   assert.match(historyPage, /SettingsMenu/);
   assert.match(reportsPage, /SettingsMenu/);
+  assert.match(team, /BackControl/);
+  assert.match(admin, /BackControl/);
+  assert.match(historyPage, /BackControl/);
+  assert.match(reportsPage, /BackControl/);
+  assert.doesNotMatch(home, /BackControl/);
+  assert.doesNotMatch(contributor, /BackControl/);
 });
 
 test("history and reports read lookback days and presets from admin config", async () => {
@@ -127,13 +148,46 @@ test("history and reports read lookback days and presets from admin config", asy
   assert.match(historyPage, /interpolateLabel\(labels.historyWindowHint/);
   assert.match(reportsPage, /settings.reportPresets/);
   assert.match(reportsPage, /reportExportFilename\(preset.days\)/);
+  assert.match(reportsPage, /customRangeExportFilename\(fromDate, toDate\)/);
+  assert.match(reportsPage, /type="date"/);
+  assert.match(reportsPage, /labels.reportsCustomInvalid/);
+  assert.match(reportsPage, /labels.reportsCustomDownload/);
   assert.match(exportRoute, /settings.reportPresets.some/);
   assert.match(exportRoute, /url.searchParams.get\("days"\)/);
+  assert.match(exportRoute, /url.searchParams.get\("start"\)/);
+  assert.match(exportRoute, /url.searchParams.get\("end"\)/);
+  assert.match(exportRoute, /normalizeCustomDateRange/);
+  assert.match(exportRoute, /customReportRangeEnabled/);
   assert.match(exportUtils, /Lead date/);
   assert.match(exportUtils, /reportExportFilename/);
+  assert.match(exportUtils, /filterRecordsByLeadDateRange/);
   assert.match(audit, /INSERT INTO audit_events/);
   assert.doesNotMatch(historyApi, /5 \* 24 \* 60 \* 60/);
   assert.doesNotMatch(reportsPage, /Download last 7 days/);
+});
+
+test("adds an admin-editable Back control that falls back to home", async () => {
+  const [back, salesConfig, home, team, historyPage, reportsPage, admin] = await Promise.all([
+    readFile(files.back, "utf8"),
+    readFile(files.salesConfig, "utf8"),
+    readFile(files.home, "utf8"),
+    readFile(files.team, "utf8"),
+    readFile(files.historyPage, "utf8"),
+    readFile(files.reportsPage, "utf8"),
+    readFile(files.admin, "utf8"),
+  ]);
+
+  assert.match(back, /window.history.back/);
+  assert.match(back, /window.location.assign\("\/"\)/);
+  assert.match(back, /window.history.length > 1/);
+  assert.match(back, /referrer.origin === window.location.origin/);
+  assert.match(salesConfig, /navBack: "Back"/);
+  assert.match(team, /labels.navBack/);
+  assert.match(historyPage, /labels.navBack/);
+  assert.match(reportsPage, /labels.navBack/);
+  assert.match(admin, /settings.labels.navBack/);
+  assert.doesNotMatch(home, /BackControl/);
+  assert.doesNotMatch(back, /href="\/admin"/);
 });
 
 test("writes audit events when dashboard data changes", async () => {
@@ -172,4 +226,41 @@ test("filters report windows by inclusive lead-date calendar days", () => {
   const cutoff = historyCutoffIso(5, now);
   assert.equal(new Date(cutoff).toISOString(), "2026-09-02T15:00:00.000Z");
   assert.equal(interpolateLabel("Showing the last {days} days.", { days: 5 }), "Showing the last 5 days.");
+});
+
+function leadDateKey(value) {
+  return value.slice(0, 10);
+}
+
+function filterRecordsByLeadDateRange(records, start, end) {
+  return records.filter((record) => {
+    const leadDate = leadDateKey(record.createdAt);
+    return leadDate >= start && leadDate <= end;
+  });
+}
+
+function customRangeExportFilename(start, end) {
+  return `rosetta-sales-${start}-to-${end}.csv`;
+}
+
+function isCustomDateRangeValid(start, end) {
+  return Boolean(start && end && /^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end) && start <= end);
+}
+
+test("filters custom report ranges inclusively and names the CSV from the dates", () => {
+  const records = [
+    { createdAt: "2025-12-31" },
+    { createdAt: "2026-01-01" },
+    { createdAt: "2026-01-15" },
+    { createdAt: "2026-01-31" },
+    { createdAt: "2026-02-01" },
+  ];
+  assert.deepEqual(
+    filterRecordsByLeadDateRange(records, "2026-01-01", "2026-01-31").map((record) => record.createdAt),
+    ["2026-01-01", "2026-01-15", "2026-01-31"]
+  );
+  assert.equal(customRangeExportFilename("2026-01-01", "2026-01-31"), "rosetta-sales-2026-01-01-to-2026-01-31.csv");
+  assert.equal(isCustomDateRangeValid("2026-01-01", "2026-01-31"), true);
+  assert.equal(isCustomDateRangeValid("", "2026-01-31"), false);
+  assert.equal(isCustomDateRangeValid("2026-01-31", "2026-01-01"), false);
 });

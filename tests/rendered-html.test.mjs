@@ -21,5 +21,6 @@ test("keeps the dashboard, history, reports, and field settings pages in the app
   assert.match(history, /\/api\/history/);
   assert.match(reports, /export default function ReportsPage/);
   assert.match(reports, /\/api\/deals\/export\?days=/);
+  assert.match(reports, /\/api\/deals\/export\?start=/);
   assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
 });

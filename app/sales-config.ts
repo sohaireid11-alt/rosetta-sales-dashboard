@@ -137,6 +137,9 @@ export const DEFAULT_REPORT_PRESETS: ReportPreset[] = [
   { id: "last-90-days", label: "Download last 90 days", days: 90 },
 ];
 
+export const DEFAULT_CUSTOM_REPORT_RANGE_ENABLED = true;
+export const DEFAULT_SHOW_BACK_CONTROL = true;
+
 export const UI_LABEL_GROUPS = [
   "chrome",
   "overview",
@@ -162,6 +165,7 @@ export const UI_LABEL_KEYS = [
   "ctaAddClientFollowUp",
   "navDashboard",
   "navSettings",
+  "navBack",
   "navTeamAccess",
   "navHistory",
   "navReports",
@@ -306,6 +310,13 @@ export const UI_LABEL_KEYS = [
   "reportsEmpty",
   "reportsLoading",
   "reportsDownloading",
+  "reportsCustomHeading",
+  "reportsCustomCopy",
+  "reportsFromLabel",
+  "reportsToLabel",
+  "reportsCustomDownload",
+  "reportsCustomInvalid",
+  "reportsCustomReady",
 ] as const;
 
 export type UiLabelKey = (typeof UI_LABEL_KEYS)[number];
@@ -322,6 +333,7 @@ export const DEFAULT_UI_LABELS: Record<UiLabelKey, string> = {
   ctaAddClientFollowUp: "Add client follow-up",
   navDashboard: "Dashboard",
   navSettings: "Settings",
+  navBack: "Back",
   navTeamAccess: "Team access",
   navHistory: "History",
   navReports: "Reports",
@@ -466,6 +478,13 @@ export const DEFAULT_UI_LABELS: Record<UiLabelKey, string> = {
   reportsEmpty: "No report ranges are configured. Add ranges in Admin controls.",
   reportsLoading: "Loading reports...",
   reportsDownloading: "Preparing CSV...",
+  reportsCustomHeading: "Custom date range",
+  reportsCustomCopy: "Choose a From date and a To date. The CSV includes sales records whose Lead date falls in that window, including both dates.",
+  reportsFromLabel: "From",
+  reportsToLabel: "To",
+  reportsCustomDownload: "Download custom range",
+  reportsCustomInvalid: "Choose a From date and a To date, with From on or before To.",
+  reportsCustomReady: "Custom range CSV is ready.",
 };
 
 export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; group: UiLabelGroup }> = {
@@ -480,6 +499,7 @@ export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; gr
   ctaAddClientFollowUp: { group: "chrome", title: "Add client follow-up button", hint: "Primary button on Client care." },
   navDashboard: { group: "chrome", title: "Dashboard link", hint: "Settings menu link back to the dashboard." },
   navSettings: { group: "chrome", title: "Settings button", hint: "Top-bar button that opens the Settings menu." },
+  navBack: { group: "chrome", title: "Back button", hint: "Shown on History, Reports, Team access, and Admin controls. Visibility is under History & reports." },
   navTeamAccess: { group: "chrome", title: "Team access menu item", hint: "Settings menu link to Team access." },
   navHistory: { group: "chrome", title: "History menu item", hint: "Settings menu link to Change history." },
   navReports: { group: "chrome", title: "Reports menu item", hint: "Settings menu link to Reports." },
@@ -624,16 +644,23 @@ export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; gr
   reportsEmpty: { group: "reports", title: "Empty reports", hint: "Shown when no download ranges are configured." },
   reportsLoading: { group: "reports", title: "Reports loading message", hint: "Shown while reports load." },
   reportsDownloading: { group: "reports", title: "Reports downloading label", hint: "Shown on a button while a CSV downloads." },
+  reportsCustomHeading: { group: "reports", title: "Custom range heading", hint: "Heading above the From and To date inputs." },
+  reportsCustomCopy: { group: "reports", title: "Custom range help text", hint: "Explains the inclusive Lead-date window for a custom CSV." },
+  reportsFromLabel: { group: "reports", title: "From date label", hint: "Label on the custom range start date." },
+  reportsToLabel: { group: "reports", title: "To date label", hint: "Label on the custom range end date." },
+  reportsCustomDownload: { group: "reports", title: "Custom range download button", hint: "Downloads the CSV for the chosen From–To window." },
+  reportsCustomInvalid: { group: "reports", title: "Custom range validation error", hint: "Shown when From or To is missing, or From is after To." },
+  reportsCustomReady: { group: "reports", title: "Custom range ready message", hint: "Shown after a custom-range CSV downloads." },
 };
 
 export const UI_LABEL_GROUP_META: Record<UiLabelGroup, { title: string; description: string }> = {
-  chrome: { title: "Navigation and chrome", description: "Settings menu, tabs, and shared buttons." },
+  chrome: { title: "Navigation and chrome", description: "Settings menu, Back button, tabs, and shared buttons." },
   overview: { title: "Overview", description: "Metric cards, filters, follow-up queue, and performance tables." },
   salesRecords: { title: "Sales records", description: "Toolbar, search, filter chips, and empty states." },
   clientCare: { title: "Client care", description: "Table headings and empty states." },
   forms: { title: "Forms and dialogs", description: "Section titles and buttons on add, edit, activity, and merge dialogs. Field labels themselves are under Form fields." },
   history: { title: "History", description: "Headings and empty states on the Change history page. Lookback days are under History & reports." },
-  reports: { title: "Reports", description: "Headings and help text on the Reports page. Download ranges are under History & reports." },
+  reports: { title: "Reports", description: "Headings, custom date-range wording, and help text on the Reports page. Preset ranges and show/hide toggles are under History & reports." },
   team: { title: "Team access", description: "Headings, form labels, and buttons on the Team access page." },
 };
 
