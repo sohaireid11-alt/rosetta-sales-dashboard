@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AccessGate } from "../access-gate";
+import { BackControl } from "../back-control";
 import { defaultFieldSettings, interpolateLabel, type FieldSettings } from "../lib/field-settings-core";
 import { SettingsMenu } from "../settings-menu";
 
@@ -31,6 +32,7 @@ export default function HistoryPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [labels, setLabels] = useState(defaultFieldSettings().labels);
   const [lookbackDays, setLookbackDays] = useState(defaultFieldSettings().historyLookbackDays);
+  const [showBackControl, setShowBackControl] = useState(defaultFieldSettings().showBackControl);
   const [events, setEvents] = useState<HistoryEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,6 +52,7 @@ export default function HistoryPage() {
           const settings = await settingsResponse.json() as FieldSettings;
           if (settings.labels) setLabels({ ...defaultFieldSettings().labels, ...settings.labels });
           if (settings.historyLookbackDays) setLookbackDays(settings.historyLookbackDays);
+          setShowBackControl(settings.showBackControl ?? defaultFieldSettings().showBackControl);
         }
         const payload = await historyResponse.json() as { events?: HistoryEvent[]; historyLookbackDays?: number; error?: string };
         if (!historyResponse.ok) throw new Error(payload.error ?? "Unable to load change history.");
@@ -70,6 +73,7 @@ export default function HistoryPage() {
     <header className="topbar">
       <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{labels.historyProductName}</span></div>
       <div className="topbar-actions">
+        <BackControl label={labels.navBack} visible={showBackControl} />
         <SettingsMenu labels={labels} role={session.user.role} showDashboard />
       </div>
     </header>

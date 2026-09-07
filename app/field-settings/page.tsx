@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { AccessGate } from "../access-gate";
+import { BackControl } from "../back-control";
 import {
   COMING_NEXT,
   DEFAULT_FIELD_SECTIONS,
@@ -73,6 +74,8 @@ function cloneSettings(settings: FieldSettings): FieldSettings {
     sections: { ...settings.sections },
     historyLookbackDays: settings.historyLookbackDays,
     reportPresets: settings.reportPresets.map((preset) => ({ ...preset })),
+    customReportRangeEnabled: settings.customReportRangeEnabled,
+    showBackControl: settings.showBackControl,
   };
 }
 
@@ -114,6 +117,8 @@ export default function FieldSettingsPage() {
       sections: payload.sections ?? defaultFieldSettings().sections,
       historyLookbackDays: payload.historyLookbackDays ?? defaultFieldSettings().historyLookbackDays,
       reportPresets: payload.reportPresets ?? defaultFieldSettings().reportPresets,
+      customReportRangeEnabled: payload.customReportRangeEnabled ?? defaultFieldSettings().customReportRangeEnabled,
+      showBackControl: payload.showBackControl ?? defaultFieldSettings().showBackControl,
     });
     setSettings(next);
     setDraft(cloneSettings(next));
@@ -132,6 +137,8 @@ export default function FieldSettingsPage() {
       sections: payload.sections ?? defaultFieldSettings().sections,
       historyLookbackDays: payload.historyLookbackDays ?? defaultFieldSettings().historyLookbackDays,
       reportPresets: payload.reportPresets ?? defaultFieldSettings().reportPresets,
+      customReportRangeEnabled: payload.customReportRangeEnabled ?? defaultFieldSettings().customReportRangeEnabled,
+      showBackControl: payload.showBackControl ?? defaultFieldSettings().showBackControl,
     });
     setSettings(next);
     setDraft(cloneSettings(next));
@@ -334,6 +341,23 @@ export default function FieldSettingsPage() {
     }
   }
 
+  async function saveWorkspaceFlags(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingKey("workspaceFlags");
+    setNotice("");
+    setError("");
+    try {
+      await put({
+        customReportRangeEnabled: draft.customReportRangeEnabled,
+        showBackControl: draft.showBackControl,
+      }, "Page controls updated. Reports and the Back button use these settings immediately.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save page controls.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
   function addReportPreset() {
     const label = newPresetLabel.trim();
     const days = Number(newPresetDays);
@@ -425,6 +449,7 @@ export default function FieldSettingsPage() {
         <span className="product-name">Admin controls</span>
       </div>
       <div className="topbar-actions">
+        <BackControl label={settings.labels.navBack} visible={settings.showBackControl} />
         <SettingsMenu labels={settings.labels} role="admin" showDashboard />
       </div>
     </header>
@@ -433,7 +458,7 @@ export default function FieldSettingsPage() {
         <div>
           <p className="eyebrow">Admin Control Center</p>
           <h1>Change the dashboard yourself</h1>
-          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, and report ranges. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
+          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, report ranges, the custom date range, and the Back button. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
         </div>
       </div>
 
@@ -444,7 +469,7 @@ export default function FieldSettingsPage() {
           <li><strong>Add or remove choices:</strong> open Dropdown options, type a new choice, press Enter or Add option, then Save picklist. Remove from dropdowns hides a choice without deleting history.</li>
           <li><strong>Rename a label or button:</strong> open Dashboard wording or Team wording, edit the text, and save that group. Settings menu items live under Navigation and chrome.</li>
           <li><strong>Hide a field or table column:</strong> turn Show on forms off (Form fields) or uncheck a column (Tables), then save.</li>
-          <li><strong>Change History or Reports without a developer:</strong> open History & reports to set lookback days and CSV ranges. New features ship with admin-editable config on this page.</li>
+          <li><strong>Change History or Reports without a developer:</strong> open History & reports to set lookback days, CSV ranges, custom date-range visibility, and the Back control. New features ship with admin-editable config on this page.</li>
         </ol>
       </section>
 
@@ -656,7 +681,7 @@ export default function FieldSettingsPage() {
           <div>
             <p className="eyebrow">Dashboard wording</p>
             <h2>Tabs, metrics, empty states, and buttons</h2>
-            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, and shared chrome including the Settings menu. Field labels are under Form fields. History lookback days and report ranges are under History & reports.</p>
+            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, and shared chrome including the Settings menu and Back button. Field labels are under Form fields. History lookback days, report ranges, custom date-range visibility, and Back visibility are under History & reports.</p>
           </div>
           <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "copy" ? "Saving..." : "Save dashboard wording"}</button>
         </div>
@@ -707,7 +732,7 @@ export default function FieldSettingsPage() {
             <div>
               <p className="eyebrow">Reports</p>
               <h2>CSV download ranges</h2>
-              <p className="table-note">Reports and `/api/deals/export?days=` use these ranges. Seeded with 7, 30, and 90 days. Rename, add, remove, or change day counts here. Each CSV includes sales records whose Lead date falls in that window — client care is not included.</p>
+              <p className="table-note">Reports and `/api/deals/export?days=` use these ranges. Seeded with 7, 30, and 90 days. Rename, add, remove, or change day counts here. Each CSV includes sales records whose Lead date falls in that window — client care is not included. Custom From/To dates are a separate control below.</p>
             </div>
             <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "reportPresets" ? "Saving..." : "Save report ranges"}</button>
           </div>
@@ -734,6 +759,34 @@ export default function FieldSettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </form>
+        <form className="settings-panel" onSubmit={(event) => void saveWorkspaceFlags(event)}>
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Page controls</p>
+              <h2>Custom date range and Back button</h2>
+              <p className="table-note">Turn the Reports calendar range and the shared Back control on or off. Labels for those controls are under Dashboard wording. Default is on for both.</p>
+            </div>
+            <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "workspaceFlags" ? "Saving..." : "Save page controls"}</button>
+          </div>
+          <div className="field-editor-flags">
+            <label className="flag-toggle">
+              <input
+                type="checkbox"
+                checked={draft.customReportRangeEnabled}
+                onChange={(event) => setDraft((current) => ({ ...current, customReportRangeEnabled: event.target.checked }))}
+              />
+              Show custom From/To date range on Reports
+            </label>
+            <label className="flag-toggle">
+              <input
+                type="checkbox"
+                checked={draft.showBackControl}
+                onChange={(event) => setDraft((current) => ({ ...current, showBackControl: event.target.checked }))}
+              />
+              Show Back on History, Reports, Team access, and Admin controls
+            </label>
           </div>
         </form>
       </> : null}

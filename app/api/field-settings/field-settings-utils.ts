@@ -13,9 +13,11 @@ import {
   normalizeReportPresets,
   normalizeSectionsUpdate,
   normalizeViewColumnsUpdate,
+  normalizeWorkspaceFlags,
   parseStoredHistoryLookbackDays,
   parseStoredLabels,
   parseStoredReportPresets,
+  parseStoredWorkspaceFlags,
   type FieldLists,
   type FieldOption,
   type FieldSections,
@@ -62,6 +64,7 @@ const LABELS_KEY = "ui_labels";
 const SECTIONS_KEY = "field_sections";
 const HISTORY_LOOKBACK_KEY = "history_lookback_days";
 const REPORT_PRESETS_KEY = "report_presets";
+const WORKSPACE_FLAGS_KEY = "workspace_flags";
 
 function asOption(row: StoredOption): FieldOption {
   return {
@@ -168,6 +171,16 @@ async function seedFieldSettings() {
     ).bind(REPORT_PRESETS_KEY, JSON.stringify(defaultFieldSettings().reportPresets), now).run();
   }
 
+  const workspaceFlags = await database.prepare("SELECT key FROM app_settings WHERE key = ?").bind(WORKSPACE_FLAGS_KEY).first();
+  if (!workspaceFlags) {
+    await database.prepare(
+      "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)"
+    ).bind(WORKSPACE_FLAGS_KEY, JSON.stringify({
+      customReportRangeEnabled: defaultFieldSettings().customReportRangeEnabled,
+      showBackControl: defaultFieldSettings().showBackControl,
+    }), now).run();
+  }
+
   await seedFieldDefinitions(now);
   await seedViewColumns(now);
 }
@@ -233,8 +246,10 @@ export async function getFieldSettings(includeRetired = false): Promise<FieldSet
     const storedSections = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(SECTIONS_KEY).first<{ value: string }>();
     const storedHistoryLookback = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(HISTORY_LOOKBACK_KEY).first<{ value: string }>();
     const storedReportPresets = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(REPORT_PRESETS_KEY).first<{ value: string }>();
+    const storedWorkspaceFlags = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(WORKSPACE_FLAGS_KEY).first<{ value: string }>();
     const fields = await loadFieldDefinitions();
     const views = await loadViewColumns();
+    const workspaceFlags = parseStoredWorkspaceFlags(storedWorkspaceFlags?.value);
     return {
       lists,
       labels: parseStoredLabels(storedLabels?.value),
@@ -243,6 +258,8 @@ export async function getFieldSettings(includeRetired = false): Promise<FieldSet
       sections: parseStoredSections(storedSections?.value),
       historyLookbackDays: parseStoredHistoryLookbackDays(storedHistoryLookback?.value),
       reportPresets: parseStoredReportPresets(storedReportPresets?.value),
+      customReportRangeEnabled: workspaceFlags.customReportRangeEnabled,
+      showBackControl: workspaceFlags.showBackControl,
     };
   } catch (error) {
     if (isMissingTable(error)) return defaultFieldSettings();
@@ -386,6 +403,12 @@ export async function replaceReportPresets(value: unknown) {
   return getFieldSettings(true);
 }
 
+export async function replaceWorkspaceFlags(value: unknown) {
+  const settings = await getFieldSettings(true);
+  await writeSetting(WORKSPACE_FLAGS_KEY, normalizeWorkspaceFlags(value, settings));
+  return getFieldSettings(true);
+}
+
 export function publicFieldSettings(settings: FieldSettings, includeRetired: boolean): FieldSettings {
   const lists = emptyFieldLists();
   for (const listKey of FIELD_LIST_KEYS) {
@@ -401,6 +424,8 @@ export function publicFieldSettings(settings: FieldSettings, includeRetired: boo
     sections: settings.sections,
     historyLookbackDays: settings.historyLookbackDays,
     reportPresets: settings.reportPresets,
+    customReportRangeEnabled: settings.customReportRangeEnabled,
+    showBackControl: settings.showBackControl,
   };
 }
 

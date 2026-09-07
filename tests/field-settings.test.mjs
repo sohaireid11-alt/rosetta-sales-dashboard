@@ -71,6 +71,9 @@ test("keeps admin-only writes and schema-driven forms", async () => {
   assert.match(page, /History & reports/);
   assert.match(page, /historyLookbackDays/);
   assert.match(page, /reportPresets/);
+  assert.match(page, /customReportRangeEnabled/);
+  assert.match(page, /showBackControl/);
+  assert.match(page, /BackControl/);
   assert.match(admin, /field-settings\/page/);
   assert.match(home, /\/api\/field-settings/);
   assert.match(home, /SchemaField/);

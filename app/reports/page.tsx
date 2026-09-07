@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AccessGate } from "../access-gate";
-import { defaultFieldSettings, reportExportFilename, type FieldSettings, type ReportPreset } from "../lib/field-settings-core";
+import { BackControl } from "../back-control";
+import { defaultFieldSettings, isCustomDateRangeValid, customRangeExportFilename, reportExportFilename, type FieldSettings, type ReportPreset } from "../lib/field-settings-core";
 import { SettingsMenu } from "../settings-menu";
 
 type Session = {
@@ -10,11 +11,31 @@ type Session = {
   user: { id: number; email: string; displayName: string; role: "admin" | "contributor" } | null;
 };
 
+async function downloadCsv(path: string, filename: string) {
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) {
+    const payload = await response.json() as { error?: string };
+    throw new Error(payload.error ?? "Unable to export the CSV.");
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const download = document.createElement("a");
+  download.href = url;
+  download.download = filename;
+  document.body.appendChild(download);
+  download.click();
+  download.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function ReportsPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [labels, setLabels] = useState(defaultFieldSettings().labels);
   const [presets, setPresets] = useState<ReportPreset[]>(defaultFieldSettings().reportPresets);
-  const [downloadingDays, setDownloadingDays] = useState<number | null>(null);
+  const [customRangeEnabled, setCustomRangeEnabled] = useState(defaultFieldSettings().customReportRangeEnabled);
+  const [showBackControl, setShowBackControl] = useState(defaultFieldSettings().showBackControl);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -28,8 +49,11 @@ export default function ReportsPage() {
         const settingsResponse = await fetch("/api/field-settings", { cache: "no-store" });
         if (!settingsResponse.ok) throw new Error("Unable to load report settings.");
         const settings = await settingsResponse.json() as FieldSettings;
-        if (settings.labels) setLabels({ ...defaultFieldSettings().labels, ...settings.labels });
+        const defaults = defaultFieldSettings();
+        if (settings.labels) setLabels({ ...defaults.labels, ...settings.labels });
         if (settings.reportPresets?.length) setPresets(settings.reportPresets);
+        setCustomRangeEnabled(settings.customReportRangeEnabled ?? defaults.customReportRangeEnabled);
+        setShowBackControl(settings.showBackControl ?? defaults.showBackControl);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Unable to load reports.");
       }
@@ -37,28 +61,37 @@ export default function ReportsPage() {
   }, []);
 
   async function downloadRange(preset: ReportPreset) {
-    setDownloadingDays(preset.days);
+    setDownloadingKey(preset.id || String(preset.days));
     setNotice("");
     setError("");
     try {
-      const response = await fetch(`/api/deals/export?days=${preset.days}`, { cache: "no-store" });
-      if (!response.ok) {
-        const payload = await response.json() as { error?: string };
-        throw new Error(payload.error ?? "Unable to export the CSV.");
-      }
-      const url = URL.createObjectURL(await response.blob());
-      const download = document.createElement("a");
-      download.href = url;
-      download.download = reportExportFilename(preset.days);
-      document.body.appendChild(download);
-      download.click();
-      download.remove();
-      URL.revokeObjectURL(url);
+      await downloadCsv(`/api/deals/export?days=${preset.days}`, reportExportFilename(preset.days));
       setNotice(`${preset.label} is ready.`);
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : "Unable to export the CSV.");
     } finally {
-      setDownloadingDays(null);
+      setDownloadingKey(null);
+    }
+  }
+
+  async function downloadCustomRange() {
+    setNotice("");
+    if (!isCustomDateRangeValid(fromDate, toDate)) {
+      setError(labels.reportsCustomInvalid);
+      return;
+    }
+    setDownloadingKey("custom");
+    setError("");
+    try {
+      await downloadCsv(
+        `/api/deals/export?start=${encodeURIComponent(fromDate)}&end=${encodeURIComponent(toDate)}`,
+        customRangeExportFilename(fromDate, toDate)
+      );
+      setNotice(labels.reportsCustomReady);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Unable to export the CSV.");
+    } finally {
+      setDownloadingKey(null);
     }
   }
 
@@ -69,6 +102,7 @@ export default function ReportsPage() {
     <header className="topbar">
       <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{labels.reportsProductName}</span></div>
       <div className="topbar-actions">
+        <BackControl label={labels.navBack} visible={showBackControl} />
         <SettingsMenu labels={labels} role="admin" showDashboard />
       </div>
     </header>
@@ -91,13 +125,37 @@ export default function ReportsPage() {
               className="primary-action"
               key={preset.id}
               onClick={() => void downloadRange(preset)}
-              disabled={downloadingDays !== null}
+              disabled={downloadingKey !== null}
             >
-              {downloadingDays === preset.days ? labels.reportsDownloading : preset.label}
+              {downloadingKey === (preset.id || String(preset.days)) ? labels.reportsDownloading : preset.label}
             </button>
           ))}
         </section>
       ) : <p className="empty-copy">{labels.reportsEmpty}</p>}
+      {customRangeEnabled ? (
+        <section className="reports-range" aria-label={labels.reportsCustomHeading}>
+          <h2>{labels.reportsCustomHeading}</h2>
+          <p className="table-note">{labels.reportsCustomCopy}</p>
+          <div className="reports-range-fields">
+            <label>
+              {labels.reportsFromLabel}
+              <input type="date" value={fromDate} max={toDate || undefined} onChange={(event) => setFromDate(event.target.value)} />
+            </label>
+            <label>
+              {labels.reportsToLabel}
+              <input type="date" value={toDate} min={fromDate || undefined} onChange={(event) => setToDate(event.target.value)} />
+            </label>
+          </div>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => void downloadCustomRange()}
+            disabled={downloadingKey !== null}
+          >
+            {downloadingKey === "custom" ? labels.reportsDownloading : labels.reportsCustomDownload}
+          </button>
+        </section>
+      ) : null}
     </section>
   </main>;
 }

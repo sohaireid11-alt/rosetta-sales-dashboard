@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { AccessGate } from "../access-gate";
+import { BackControl } from "../back-control";
 import { defaultFieldSettings, type FieldSettings } from "../lib/field-settings-core";
 import { SettingsMenu } from "../settings-menu";
 
@@ -36,6 +37,7 @@ function newTemporaryPassword() {
 export default function TeamPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [labels, setLabels] = useState(defaultFieldSettings().labels);
+  const [showBackControl, setShowBackControl] = useState(defaultFieldSettings().showBackControl);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,6 +62,7 @@ export default function TeamPage() {
     if (settingsResponse.ok) {
       const settings = await settingsResponse.json() as FieldSettings;
       if (settings.labels) setLabels({ ...defaultFieldSettings().labels, ...settings.labels });
+      setShowBackControl(settings.showBackControl ?? defaultFieldSettings().showBackControl);
     }
     const usersResponse = await fetch("/api/users", { cache: "no-store" });
     const payload = await usersResponse.json() as { users?: ManagedUser[]; error?: string };
@@ -180,7 +183,10 @@ export default function TeamPage() {
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{labels.teamProductName}</span></div>
-      <div className="topbar-actions"><SettingsMenu labels={labels} role="admin" showDashboard /></div>
+      <div className="topbar-actions">
+        <BackControl label={labels.navBack} visible={showBackControl} />
+        <SettingsMenu labels={labels} role="admin" showDashboard />
+      </div>
     </header>
     <section className="team-workspace">
       <div className="page-heading"><div><p className="eyebrow">{labels.teamEyebrow}</p><h1>{labels.teamHeading}</h1><p className="heading-copy">{labels.teamCopy}</p></div></div>
