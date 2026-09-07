@@ -1,6 +1,7 @@
 import { RecordValidationError, errorMessage, findRecord, removeRecord, readRecordInput, updateRecord } from "../record-utils";
 import { AccessError, requireRole } from "../../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../../lib/audit";
+import { deleteFollowUpCalendarSafe, syncSalesFollowUpCalendar } from "../../../lib/calendar-sync";
 
 function readId(value: string) {
   const id = Number(value);
@@ -21,6 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       entityId: record.id,
       summary: `${actorLabel(user)} updated lead ${record.leadName}`,
     });
+    await syncSalesFollowUpCalendar(record);
     return Response.json({ record });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : error instanceof RecordValidationError ? 400 : 500;
@@ -43,6 +45,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
       entityId: existing.id,
       summary: `${actorLabel(user)} deleted sales record ${existing.leadName}`,
     });
+    await deleteFollowUpCalendarSafe("sales_record", existing.id);
     return new Response(null, { status: 204 });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;

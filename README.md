@@ -35,6 +35,13 @@ required Worker secrets before the first deployment:
 - `ADMIN_EMAIL`
 - `INITIAL_ADMIN_PASSWORD`
 
+Optional Google Calendar sync (see `GOOGLE_CALENDAR_SETUP.md`; do not commit these values):
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_TOKEN_ENCRYPTION_KEY` (optional; falls back to `APP_SESSION_SECRET`)
+- `GOOGLE_OAUTH_REDIRECT_URI` (optional; defaults to `{origin}/api/calendar/oauth/callback`)
+
 The deployment account and database should be transferred to Rosetta before any
 administrator leaves the organization.
 
