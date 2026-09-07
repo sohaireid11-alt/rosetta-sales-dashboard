@@ -1,5 +1,5 @@
-import { AccessError, requireRole } from "../../../../../lib/access";
-import { calendarErrorMessage, finishGoogleCalendarOAuth } from "../../../../../lib/calendar-sync";
+import { AccessError, requireRole } from "../../../../lib/access";
+import { calendarErrorMessage, finishGoogleCalendarOAuth } from "../../../../lib/calendar-sync";
 
 export async function GET(request: Request) {
   try {
