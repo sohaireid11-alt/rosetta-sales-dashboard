@@ -14,6 +14,7 @@ import {
 } from "./lib/form-runtime";
 import { defaultFieldSettings, type FieldSettings } from "./lib/field-settings-core";
 import { SchemaField } from "./schema-field";
+import { SettingsMenu } from "./settings-menu";
 
 type ContributorFormProps = { displayName: string; email: string };
 
@@ -59,7 +60,7 @@ export function ContributorForm({ displayName, email }: ContributorFormProps) {
   return <main className="access-shell">
     <header className="topbar">
       <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{addLabel}</span></div>
-      <form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">{labels.navSignOut}</button></form>
+      <div className="topbar-actions"><SettingsMenu labels={labels} role="contributor" /></div>
     </header>
     <section className="contributor-workspace">
       <div className="access-heading">

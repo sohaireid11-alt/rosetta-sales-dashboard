@@ -119,12 +119,32 @@ export const FIELD_LIST_META: Record<FieldListKey, { title: string; description:
   relationshipTypes: { title: "Relationship types", description: "Dropdown choices for how an active client works with Rosetta." },
 };
 
+export const DEFAULT_HISTORY_LOOKBACK_DAYS = 5;
+export const MIN_HISTORY_LOOKBACK_DAYS = 1;
+export const MAX_HISTORY_LOOKBACK_DAYS = 365;
+export const MIN_REPORT_PRESET_DAYS = 1;
+export const MAX_REPORT_PRESET_DAYS = 3650;
+
+export type ReportPreset = {
+  id: string;
+  label: string;
+  days: number;
+};
+
+export const DEFAULT_REPORT_PRESETS: ReportPreset[] = [
+  { id: "last-7-days", label: "Download last 7 days", days: 7 },
+  { id: "last-30-days", label: "Download last 30 days", days: 30 },
+  { id: "last-90-days", label: "Download last 90 days", days: 90 },
+];
+
 export const UI_LABEL_GROUPS = [
   "chrome",
   "overview",
   "salesRecords",
   "clientCare",
   "forms",
+  "history",
+  "reports",
   "team",
 ] as const;
 
@@ -141,7 +161,10 @@ export const UI_LABEL_KEYS = [
   "ctaAddSalesRecord",
   "ctaAddClientFollowUp",
   "navDashboard",
+  "navSettings",
   "navTeamAccess",
+  "navHistory",
+  "navReports",
   "navAdminControls",
   "navSignOut",
   "eyebrowRosetta",
@@ -268,6 +291,21 @@ export const UI_LABEL_KEYS = [
   "teamRemove",
   "teamSaveAccess",
   "teamCancel",
+  "historyProductName",
+  "historyEyebrow",
+  "historyHeading",
+  "historyCopy",
+  "historyWindowHint",
+  "historyEmpty",
+  "historyLoading",
+  "reportsProductName",
+  "reportsEyebrow",
+  "reportsHeading",
+  "reportsCopy",
+  "reportsNote",
+  "reportsEmpty",
+  "reportsLoading",
+  "reportsDownloading",
 ] as const;
 
 export type UiLabelKey = (typeof UI_LABEL_KEYS)[number];
@@ -283,7 +321,10 @@ export const DEFAULT_UI_LABELS: Record<UiLabelKey, string> = {
   ctaAddSalesRecord: "Add sales record",
   ctaAddClientFollowUp: "Add client follow-up",
   navDashboard: "Dashboard",
+  navSettings: "Settings",
   navTeamAccess: "Team access",
+  navHistory: "History",
+  navReports: "Reports",
   navAdminControls: "Admin controls",
   navSignOut: "Sign out",
   eyebrowRosetta: "Rosetta Languages",
@@ -410,6 +451,21 @@ export const DEFAULT_UI_LABELS: Record<UiLabelKey, string> = {
   teamRemove: "Remove",
   teamSaveAccess: "Save access",
   teamCancel: "Cancel",
+  historyProductName: "Change history",
+  historyEyebrow: "Audit log",
+  historyHeading: "Change history",
+  historyCopy: "User edits to sales records, client care, and team access, newest first.",
+  historyWindowHint: "Showing the last {days} days.",
+  historyEmpty: "No dashboard changes in this window.",
+  historyLoading: "Loading change history...",
+  reportsProductName: "Reports",
+  reportsEyebrow: "CSV download",
+  reportsHeading: "Reports",
+  reportsCopy: "Download sales records whose Lead date falls in a selected window.",
+  reportsNote: "Each CSV uses the same columns as Export CSV on Sales records. Ranges are filtered by Lead date. Client-care follow-ups are not included.",
+  reportsEmpty: "No report ranges are configured. Add ranges in Admin controls.",
+  reportsLoading: "Loading reports...",
+  reportsDownloading: "Preparing CSV...",
 };
 
 export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; group: UiLabelGroup }> = {
@@ -422,10 +478,13 @@ export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; gr
   headingClientCare: { group: "clientCare", title: "Client care heading", hint: "Main heading on the Client care tab." },
   ctaAddSalesRecord: { group: "chrome", title: "Add sales record button", hint: "Primary button on Overview and Sales records." },
   ctaAddClientFollowUp: { group: "chrome", title: "Add client follow-up button", hint: "Primary button on Client care." },
-  navDashboard: { group: "chrome", title: "Dashboard link", hint: "Top-bar link back to the dashboard." },
-  navTeamAccess: { group: "chrome", title: "Team access link", hint: "Top-bar link to Team access." },
-  navAdminControls: { group: "chrome", title: "Admin controls link", hint: "Top-bar link to this control center." },
-  navSignOut: { group: "chrome", title: "Sign out button", hint: "Top-bar sign-out action." },
+  navDashboard: { group: "chrome", title: "Dashboard link", hint: "Settings menu link back to the dashboard." },
+  navSettings: { group: "chrome", title: "Settings button", hint: "Top-bar button that opens the Settings menu." },
+  navTeamAccess: { group: "chrome", title: "Team access menu item", hint: "Settings menu link to Team access." },
+  navHistory: { group: "chrome", title: "History menu item", hint: "Settings menu link to Change history." },
+  navReports: { group: "chrome", title: "Reports menu item", hint: "Settings menu link to Reports." },
+  navAdminControls: { group: "chrome", title: "Admin controls menu item", hint: "Settings menu link to this control center." },
+  navSignOut: { group: "chrome", title: "Sign out menu item", hint: "Settings menu sign-out action." },
   eyebrowRosetta: { group: "chrome", title: "Page eyebrow", hint: "Small uppercase line above page headings." },
   descOverview: { group: "overview", title: "Overview description", hint: "Supporting sentence under the Overview heading." },
   descSalesRecords: { group: "salesRecords", title: "Sales records description", hint: "Supporting sentence under the Sales records heading." },
@@ -550,14 +609,31 @@ export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; gr
   teamRemove: { group: "team", title: "Remove account button", hint: "Removes an account's access." },
   teamSaveAccess: { group: "team", title: "Save access button", hint: "Saves a role change." },
   teamCancel: { group: "team", title: "Team cancel button", hint: "Cancels a role edit." },
+  historyProductName: { group: "history", title: "History top-bar name", hint: "Product name on the History page." },
+  historyEyebrow: { group: "history", title: "History page eyebrow", hint: "Small label above Change history." },
+  historyHeading: { group: "history", title: "History page heading", hint: "Main History heading." },
+  historyCopy: { group: "history", title: "History page description", hint: "Sentence under the History heading." },
+  historyWindowHint: { group: "history", title: "History window hint", hint: "Shown under the description. Use {days} for the lookback number from History & reports." },
+  historyEmpty: { group: "history", title: "Empty history", hint: "Shown when nothing was changed in the lookback window." },
+  historyLoading: { group: "history", title: "History loading message", hint: "Shown while history loads." },
+  reportsProductName: { group: "reports", title: "Reports top-bar name", hint: "Product name on the Reports page." },
+  reportsEyebrow: { group: "reports", title: "Reports page eyebrow", hint: "Small label above Reports." },
+  reportsHeading: { group: "reports", title: "Reports page heading", hint: "Main Reports heading." },
+  reportsCopy: { group: "reports", title: "Reports page description", hint: "Sentence under the Reports heading." },
+  reportsNote: { group: "reports", title: "Reports help text", hint: "Explains Lead date filtering and that client care is not in the CSV." },
+  reportsEmpty: { group: "reports", title: "Empty reports", hint: "Shown when no download ranges are configured." },
+  reportsLoading: { group: "reports", title: "Reports loading message", hint: "Shown while reports load." },
+  reportsDownloading: { group: "reports", title: "Reports downloading label", hint: "Shown on a button while a CSV downloads." },
 };
 
 export const UI_LABEL_GROUP_META: Record<UiLabelGroup, { title: string; description: string }> = {
-  chrome: { title: "Navigation and chrome", description: "Top bar, tabs, and shared buttons." },
+  chrome: { title: "Navigation and chrome", description: "Settings menu, tabs, and shared buttons." },
   overview: { title: "Overview", description: "Metric cards, filters, follow-up queue, and performance tables." },
   salesRecords: { title: "Sales records", description: "Toolbar, search, filter chips, and empty states." },
   clientCare: { title: "Client care", description: "Table headings and empty states." },
   forms: { title: "Forms and dialogs", description: "Section titles and buttons on add, edit, activity, and merge dialogs. Field labels themselves are under Form fields." },
+  history: { title: "History", description: "Headings and empty states on the Change history page. Lookback days are under History & reports." },
+  reports: { title: "Reports", description: "Headings and help text on the Reports page. Download ranges are under History & reports." },
   team: { title: "Team access", description: "Headings, form labels, and buttons on the Team access page." },
 };
 

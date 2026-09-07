@@ -1,5 +1,6 @@
-import { RecordValidationError, errorMessage, mergeRecords } from "../../record-utils";
+import { RecordValidationError, errorMessage, findRecord, mergeRecords } from "../../record-utils";
 import { AccessError, requireRole } from "../../../../lib/access";
+import { actorLabel, recordAuditEvent } from "../../../../lib/audit";
 
 function readId(value: string) {
   const id = Number(value);
@@ -9,11 +10,19 @@ function readId(value: string) {
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin"]);
     const { id } = await context.params;
     const payload = await request.json() as { duplicateRecordId?: unknown };
+    const duplicate = await findRecord(Number(payload.duplicateRecordId));
     const record = await mergeRecords(readId(id), payload.duplicateRecordId);
     if (!record) return Response.json({ error: "Sales record not found." }, { status: 404 });
+    await recordAuditEvent({
+      actor: user,
+      actionType: "merge",
+      entityType: "sales_record",
+      entityId: record.id,
+      summary: `${actorLabel(user)} merged duplicate ${duplicate?.leadName ?? "record"} into ${record.leadName}`,
+    });
     return Response.json({ record });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : error instanceof RecordValidationError ? 400 : 500;

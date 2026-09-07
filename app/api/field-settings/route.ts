@@ -6,6 +6,8 @@ import {
   publicFieldSettings,
   replaceFieldDefinition,
   replaceFieldList,
+  replaceHistoryLookbackDays,
+  replaceReportPresets,
   replaceSections,
   replaceUiLabels,
   replaceViewColumns,
@@ -34,12 +36,20 @@ async function saveSettings(request: Request) {
     viewKey?: unknown;
     columns?: unknown;
     sections?: unknown;
+    historyLookbackDays?: unknown;
+    reportPresets?: unknown;
   };
   if (payload.labels && typeof payload.labels === "object") {
     return Response.json(await replaceUiLabels(payload.labels));
   }
   if (payload.sections && typeof payload.sections === "object") {
     return Response.json(await replaceSections(payload.sections));
+  }
+  if (payload.historyLookbackDays !== undefined) {
+    return Response.json(await replaceHistoryLookbackDays(payload.historyLookbackDays));
+  }
+  if (payload.reportPresets) {
+    return Response.json(await replaceReportPresets(payload.reportPresets));
   }
   if (payload.viewKey && payload.columns) {
     return Response.json(await replaceViewColumns(payload.viewKey, payload.columns));

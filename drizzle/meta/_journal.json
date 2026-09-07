@@ -57,6 +57,13 @@
       "when": 1788728120357,
       "tag": "0007_admin_control_center",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788771670901,
+      "tag": "0008_audit_events",
+      "breakpoints": true
     }
   ]
 }

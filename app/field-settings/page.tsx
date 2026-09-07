@@ -19,24 +19,30 @@ import {
   defaultFieldSettings,
   type FieldOption,
   type FieldSettings,
+  type ReportPreset,
   type UiLabels,
 } from "../lib/field-settings-core";
 import {
   FIELD_LIST_KEYS,
   FIELD_LIST_META,
+  MAX_HISTORY_LOOKBACK_DAYS,
+  MAX_REPORT_PRESET_DAYS,
+  MIN_HISTORY_LOOKBACK_DAYS,
+  MIN_REPORT_PRESET_DAYS,
   UI_LABEL_GROUP_META,
   UI_LABEL_GROUPS,
   UI_LABEL_KEYS,
   UI_LABEL_META,
   type FieldListKey,
 } from "../sales-config";
+import { SettingsMenu } from "../settings-menu";
 
 type AppRole = "admin" | "contributor";
 type Session = {
   configured: boolean;
   user: { id: number; email: string; displayName: string; role: AppRole } | null;
 };
-type AdminTab = "fields" | "picklists" | "tables" | "copy" | "team" | "roadmap";
+type AdminTab = "fields" | "picklists" | "tables" | "copy" | "workspace" | "team" | "roadmap";
 
 const ENTITY_TITLES: Record<FieldEntity, string> = {
   sales_record: "Sales records & contributor form",
@@ -65,6 +71,8 @@ function cloneSettings(settings: FieldSettings): FieldSettings {
       VIEW_KEYS.map((key) => [key, (settings.views[key] ?? []).map((column) => ({ ...column }))])
     ) as FieldSettings["views"],
     sections: { ...settings.sections },
+    historyLookbackDays: settings.historyLookbackDays,
+    reportPresets: settings.reportPresets.map((preset) => ({ ...preset })),
   };
 }
 
@@ -84,6 +92,8 @@ export default function FieldSettingsPage() {
   const [newLabels, setNewLabels] = useState<Record<FieldListKey, string>>(
     Object.fromEntries(FIELD_LIST_KEYS.map((key) => [key, ""])) as Record<FieldListKey, string>
   );
+  const [newPresetLabel, setNewPresetLabel] = useState("");
+  const [newPresetDays, setNewPresetDays] = useState("14");
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -96,7 +106,15 @@ export default function FieldSettingsPage() {
     const settingsResponse = await fetch("/api/field-settings", { cache: "no-store" });
     const payload = await settingsResponse.json() as FieldSettings & { error?: string };
     if (!settingsResponse.ok) throw new Error(payload.error ?? "Unable to load admin settings.");
-    const next = cloneSettings({ ...defaultFieldSettings(), ...payload, fields: payload.fields ?? defaultFieldSettings().fields, views: payload.views ?? defaultFieldSettings().views, sections: payload.sections ?? defaultFieldSettings().sections });
+    const next = cloneSettings({
+      ...defaultFieldSettings(),
+      ...payload,
+      fields: payload.fields ?? defaultFieldSettings().fields,
+      views: payload.views ?? defaultFieldSettings().views,
+      sections: payload.sections ?? defaultFieldSettings().sections,
+      historyLookbackDays: payload.historyLookbackDays ?? defaultFieldSettings().historyLookbackDays,
+      reportPresets: payload.reportPresets ?? defaultFieldSettings().reportPresets,
+    });
     setSettings(next);
     setDraft(cloneSettings(next));
   }
@@ -106,7 +124,15 @@ export default function FieldSettingsPage() {
   }, []);
 
   function applySaved(payload: FieldSettings) {
-    const next = cloneSettings({ ...defaultFieldSettings(), ...payload, fields: payload.fields ?? defaultFieldSettings().fields, views: payload.views ?? defaultFieldSettings().views, sections: payload.sections ?? defaultFieldSettings().sections });
+    const next = cloneSettings({
+      ...defaultFieldSettings(),
+      ...payload,
+      fields: payload.fields ?? defaultFieldSettings().fields,
+      views: payload.views ?? defaultFieldSettings().views,
+      sections: payload.sections ?? defaultFieldSettings().sections,
+      historyLookbackDays: payload.historyLookbackDays ?? defaultFieldSettings().historyLookbackDays,
+      reportPresets: payload.reportPresets ?? defaultFieldSettings().reportPresets,
+    });
     setSettings(next);
     setDraft(cloneSettings(next));
   }
@@ -280,6 +306,71 @@ export default function FieldSettingsPage() {
     }
   }
 
+  async function saveHistoryLookback(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingKey("historyLookback");
+    setNotice("");
+    setError("");
+    try {
+      await put({ historyLookbackDays: draft.historyLookbackDays }, "History lookback updated. The History page uses this window immediately.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save history lookback.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function saveReportPresets(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingKey("reportPresets");
+    setNotice("");
+    setError("");
+    try {
+      await put({ reportPresets: draft.reportPresets }, "Report ranges updated. Reports downloads now use these ranges.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save report ranges.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  function addReportPreset() {
+    const label = newPresetLabel.trim();
+    const days = Number(newPresetDays);
+    if (!label) return;
+    if (!Number.isInteger(days) || days < MIN_REPORT_PRESET_DAYS || days > MAX_REPORT_PRESET_DAYS) {
+      setError(`Report ranges must be a whole number from ${MIN_REPORT_PRESET_DAYS} to ${MAX_REPORT_PRESET_DAYS} days.`);
+      return;
+    }
+    if (draft.reportPresets.some((preset) => preset.days === days)) {
+      setError(`A report range for ${days} days is already on the list.`);
+      return;
+    }
+    setError("");
+    setDraft((current) => ({
+      ...current,
+      reportPresets: [...current.reportPresets, { id: "", label, days }],
+    }));
+    setNewPresetLabel("");
+    setNewPresetDays("14");
+  }
+
+  function removeReportPreset(index: number) {
+    setDraft((current) => ({
+      ...current,
+      reportPresets: current.reportPresets.filter((_, presetIndex) => presetIndex !== index),
+    }));
+  }
+
+  function patchReportPreset(index: number, patch: Partial<ReportPreset>) {
+    setDraft((current) => ({
+      ...current,
+      reportPresets: current.reportPresets.map((preset, presetIndex) => (
+        presetIndex === index ? { ...preset, ...patch } : preset
+      )),
+    }));
+  }
+
   function patchField(entity: FieldEntity, fieldKey: string, patch: Partial<FieldDefinition>) {
     setDraft((current) => ({
       ...current,
@@ -321,6 +412,7 @@ export default function FieldSettingsPage() {
     { id: "picklists", label: "Dropdown options" },
     { id: "tables", label: "Tables" },
     { id: "copy", label: "Dashboard wording" },
+    { id: "workspace", label: "History & reports" },
     { id: "team", label: "Team wording" },
     { id: "roadmap", label: "Coming next" },
   ];
@@ -333,9 +425,7 @@ export default function FieldSettingsPage() {
         <span className="product-name">Admin controls</span>
       </div>
       <div className="topbar-actions">
-        <a className="secondary-action" href="/">Dashboard</a>
-        <a className="secondary-action" href="/team">Team access</a>
-        <form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">Sign out</button></form>
+        <SettingsMenu labels={settings.labels} role="admin" showDashboard />
       </div>
     </header>
     <section className="settings-workspace">
@@ -343,7 +433,7 @@ export default function FieldSettingsPage() {
         <div>
           <p className="eyebrow">Admin Control Center</p>
           <h1>Change the dashboard yourself</h1>
-          <p className="heading-copy">Admins own labels, field types, required rules, visibility, and dropdown options. After you save, the next form or page load uses your settings — no coding or GitHub needed.</p>
+          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, and report ranges. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
         </div>
       </div>
 
@@ -352,8 +442,9 @@ export default function FieldSettingsPage() {
         <ol className="handbook-list">
           <li><strong>Change a dropdown to multi-select:</strong> open Form fields, find the field (Service, Source type, or Action needed are common), set Input type to Multi-select, then Save field. Existing single values still load.</li>
           <li><strong>Add or remove choices:</strong> open Dropdown options, type a new choice, press Enter or Add option, then Save picklist. Remove from dropdowns hides a choice without deleting history.</li>
-          <li><strong>Rename a label or button:</strong> open Dashboard wording or Team wording, edit the text, and save that group.</li>
+          <li><strong>Rename a label or button:</strong> open Dashboard wording or Team wording, edit the text, and save that group. Settings menu items live under Navigation and chrome.</li>
           <li><strong>Hide a field or table column:</strong> turn Show on forms off (Form fields) or uncheck a column (Tables), then save.</li>
+          <li><strong>Change History or Reports without a developer:</strong> open History & reports to set lookback days and CSV ranges. New features ship with admin-editable config on this page.</li>
         </ol>
       </section>
 
@@ -565,7 +656,7 @@ export default function FieldSettingsPage() {
           <div>
             <p className="eyebrow">Dashboard wording</p>
             <h2>Tabs, metrics, empty states, and buttons</h2>
-            <p className="table-note">These strings appear on Overview, Sales records, Client care, and shared chrome. Field labels are under Form fields. Dropdown choices are under Dropdown options.</p>
+            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, and shared chrome including the Settings menu. Field labels are under Form fields. History lookback days and report ranges are under History & reports.</p>
           </div>
           <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "copy" ? "Saving..." : "Save dashboard wording"}</button>
         </div>
@@ -585,6 +676,67 @@ export default function FieldSettingsPage() {
           </div>
         ))}
       </form> : null}
+
+      {tab === "workspace" ? <>
+        <form className="settings-panel" onSubmit={(event) => void saveHistoryLookback(event)}>
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">History</p>
+              <h2>Lookback window</h2>
+              <p className="table-note">History shows user data changes no older than this many days. Default is 5. Change it here — not in GitHub or code.</p>
+            </div>
+            <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "historyLookback" ? "Saving..." : "Save lookback"}</button>
+          </div>
+          <div className="labels-grid">
+            <label>
+              History lookback days
+              <input
+                type="number"
+                min={MIN_HISTORY_LOOKBACK_DAYS}
+                max={MAX_HISTORY_LOOKBACK_DAYS}
+                step={1}
+                value={draft.historyLookbackDays}
+                onChange={(event) => setDraft((current) => ({ ...current, historyLookbackDays: Number(event.target.value) }))}
+              />
+              <small>Whole number from {MIN_HISTORY_LOOKBACK_DAYS} to {MAX_HISTORY_LOOKBACK_DAYS}.</small>
+            </label>
+          </div>
+        </form>
+        <form className="settings-panel" onSubmit={(event) => void saveReportPresets(event)}>
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Reports</p>
+              <h2>CSV download ranges</h2>
+              <p className="table-note">Reports and `/api/deals/export?days=` use these ranges. Seeded with 7, 30, and 90 days. Rename, add, remove, or change day counts here. Each CSV includes sales records whose Lead date falls in that window — client care is not included.</p>
+            </div>
+            <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "reportPresets" ? "Saving..." : "Save report ranges"}</button>
+          </div>
+            <div className="add-option-card report-range-add">
+            <label>
+              Button label
+              <input value={newPresetLabel} onChange={(event) => setNewPresetLabel(event.target.value)} placeholder="Download last 14 days" />
+            </label>
+            <label>
+              Days
+              <input type="number" min={MIN_REPORT_PRESET_DAYS} max={MAX_REPORT_PRESET_DAYS} step={1} value={newPresetDays} onChange={(event) => setNewPresetDays(event.target.value)} />
+            </label>
+            <button className="secondary-action add-option-button" type="button" onClick={addReportPreset}>Add range</button>
+          </div>
+          <div className="settings-options">
+            {draft.reportPresets.map((preset, index) => (
+              <div className="settings-option" key={`${preset.id || "new"}-${index}`}>
+                <div className="settings-option-fields">
+                  <label>Button label<input value={preset.label} onChange={(event) => patchReportPreset(index, { label: event.target.value })} /></label>
+                  <label>Days<input type="number" min={MIN_REPORT_PRESET_DAYS} max={MAX_REPORT_PRESET_DAYS} step={1} value={preset.days} onChange={(event) => patchReportPreset(index, { days: Number(event.target.value) })} /></label>
+                </div>
+                <div className="settings-option-actions">
+                  <button type="button" className="delete-button" onClick={() => removeReportPreset(index)} disabled={draft.reportPresets.length < 2}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </form>
+      </> : null}
 
       {tab === "team" ? <form className="settings-panel labels-panel" onSubmit={(event) => void saveLabels(event, "team")}>
         <div className="panel-heading">
@@ -611,7 +763,7 @@ export default function FieldSettingsPage() {
           <div>
             <p className="eyebrow">Coming next</p>
             <h2>Not in this release — listed so nothing is silent</h2>
-            <p className="table-note">Everything else on the dashboard that admins typically change is already here: field types, options, labels, table columns, and page copy.</p>
+            <p className="table-note">Everything else on the dashboard that admins typically change is already here: field types, options, labels, table columns, page copy, History lookback, and report ranges.</p>
           </div>
         </div>
         <div className="roadmap-list">

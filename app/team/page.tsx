@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { AccessGate } from "../access-gate";
 import { defaultFieldSettings, type FieldSettings } from "../lib/field-settings-core";
+import { SettingsMenu } from "../settings-menu";
 
 type AppRole = "admin" | "contributor";
 type Session = {
@@ -179,7 +180,7 @@ export default function TeamPage() {
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{labels.teamProductName}</span></div>
-      <div className="topbar-actions"><a className="secondary-action" href="/">{labels.navDashboard}</a><a className="secondary-action" href="/admin">{labels.navAdminControls}</a><form action="/api/auth/logout" method="post"><button className="secondary-action" type="submit">{labels.navSignOut}</button></form></div>
+      <div className="topbar-actions"><SettingsMenu labels={labels} role="admin" showDashboard /></div>
     </header>
     <section className="team-workspace">
       <div className="page-heading"><div><p className="eyebrow">{labels.teamEyebrow}</p><h1>{labels.teamHeading}</h1><p className="heading-copy">{labels.teamCopy}</p></div></div>
