@@ -176,6 +176,25 @@ export const appFieldDefinitions = sqliteTable(
   ]
 );
 
+export const auditEvents = sqliteTable(
+  "audit_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    createdAt: text("created_at").notNull(),
+    actorUserId: integer("actor_user_id"),
+    actorEmail: text("actor_email").notNull().default(""),
+    actorDisplayName: text("actor_display_name").notNull(),
+    actionType: text("action_type").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id"),
+    summary: text("summary").notNull(),
+  },
+  (table) => [
+    index("idx_audit_events_created_at").on(table.createdAt),
+    index("idx_audit_events_actor_created_at").on(table.actorUserId, table.createdAt),
+  ]
+);
+
 export const appViewColumns = sqliteTable(
   "app_view_columns",
   {

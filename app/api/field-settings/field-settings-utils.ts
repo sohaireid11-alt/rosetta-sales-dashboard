@@ -7,11 +7,15 @@ import {
   FieldSettingsError,
   mergeListOptions,
   normalizeFieldDefinitionUpdate,
+  normalizeHistoryLookbackDays,
   normalizeLabelsUpdate,
   normalizeListUpdate,
+  normalizeReportPresets,
   normalizeSectionsUpdate,
   normalizeViewColumnsUpdate,
+  parseStoredHistoryLookbackDays,
   parseStoredLabels,
+  parseStoredReportPresets,
   type FieldLists,
   type FieldOption,
   type FieldSections,
@@ -56,6 +60,8 @@ type StoredViewColumn = {
 
 const LABELS_KEY = "ui_labels";
 const SECTIONS_KEY = "field_sections";
+const HISTORY_LOOKBACK_KEY = "history_lookback_days";
+const REPORT_PRESETS_KEY = "report_presets";
 
 function asOption(row: StoredOption): FieldOption {
   return {
@@ -148,6 +154,20 @@ async function seedFieldSettings() {
     ).bind(SECTIONS_KEY, JSON.stringify(defaultFieldSettings().sections), now).run();
   }
 
+  const historyLookback = await database.prepare("SELECT key FROM app_settings WHERE key = ?").bind(HISTORY_LOOKBACK_KEY).first();
+  if (!historyLookback) {
+    await database.prepare(
+      "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)"
+    ).bind(HISTORY_LOOKBACK_KEY, JSON.stringify(defaultFieldSettings().historyLookbackDays), now).run();
+  }
+
+  const reportPresets = await database.prepare("SELECT key FROM app_settings WHERE key = ?").bind(REPORT_PRESETS_KEY).first();
+  if (!reportPresets) {
+    await database.prepare(
+      "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)"
+    ).bind(REPORT_PRESETS_KEY, JSON.stringify(defaultFieldSettings().reportPresets), now).run();
+  }
+
   await seedFieldDefinitions(now);
   await seedViewColumns(now);
 }
@@ -211,6 +231,8 @@ export async function getFieldSettings(includeRetired = false): Promise<FieldSet
     }
     const storedLabels = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(LABELS_KEY).first<{ value: string }>();
     const storedSections = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(SECTIONS_KEY).first<{ value: string }>();
+    const storedHistoryLookback = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(HISTORY_LOOKBACK_KEY).first<{ value: string }>();
+    const storedReportPresets = await database.prepare("SELECT value FROM app_settings WHERE key = ?").bind(REPORT_PRESETS_KEY).first<{ value: string }>();
     const fields = await loadFieldDefinitions();
     const views = await loadViewColumns();
     return {
@@ -219,6 +241,8 @@ export async function getFieldSettings(includeRetired = false): Promise<FieldSet
       fields,
       views,
       sections: parseStoredSections(storedSections?.value),
+      historyLookbackDays: parseStoredHistoryLookbackDays(storedHistoryLookback?.value),
+      reportPresets: parseStoredReportPresets(storedReportPresets?.value),
     };
   } catch (error) {
     if (isMissingTable(error)) return defaultFieldSettings();
@@ -344,6 +368,24 @@ export async function replaceSections(value: unknown) {
   return getFieldSettings(true);
 }
 
+async function writeSetting(key: string, value: unknown) {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+  await database.prepare(
+    "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+  ).bind(key, JSON.stringify(value), now).run();
+}
+
+export async function replaceHistoryLookbackDays(value: unknown) {
+  await writeSetting(HISTORY_LOOKBACK_KEY, normalizeHistoryLookbackDays(value));
+  return getFieldSettings(true);
+}
+
+export async function replaceReportPresets(value: unknown) {
+  await writeSetting(REPORT_PRESETS_KEY, normalizeReportPresets(value));
+  return getFieldSettings(true);
+}
+
 export function publicFieldSettings(settings: FieldSettings, includeRetired: boolean): FieldSettings {
   const lists = emptyFieldLists();
   for (const listKey of FIELD_LIST_KEYS) {
@@ -357,6 +399,8 @@ export function publicFieldSettings(settings: FieldSettings, includeRetired: boo
     fields: includeRetired ? settings.fields : settings.fields.filter((field) => field.isActive),
     views: settings.views,
     sections: settings.sections,
+    historyLookbackDays: settings.historyLookbackDays,
+    reportPresets: settings.reportPresets,
   };
 }
 

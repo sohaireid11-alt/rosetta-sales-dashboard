@@ -1,4 +1,5 @@
 import { AccessError, createManagedUser, listManagedUsers, requireRole } from "../../lib/access";
+import { actorLabel, recordAuditEvent } from "../../lib/audit";
 
 export async function GET(request: Request) {
   try {
@@ -12,8 +13,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireRole(request, ["admin"]);
+    const actor = await requireRole(request, ["admin"]);
     const user = await createManagedUser(await request.json());
+    if (user) {
+      await recordAuditEvent({
+        actor,
+        actionType: "create",
+        entityType: "app_user",
+        entityId: user.id,
+        summary: `${actorLabel(actor)} created team account for ${user.displayName}`,
+      });
+    }
     return Response.json({ user }, { status: 201 });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;

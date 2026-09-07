@@ -14,11 +14,18 @@ import {
   type ViewKey,
 } from "../admin-catalog";
 import {
+  DEFAULT_HISTORY_LOOKBACK_DAYS,
+  DEFAULT_REPORT_PRESETS,
   DEFAULT_UI_LABELS,
   FIELD_LIST_DEFAULTS,
   FIELD_LIST_KEYS,
+  MAX_HISTORY_LOOKBACK_DAYS,
+  MAX_REPORT_PRESET_DAYS,
+  MIN_HISTORY_LOOKBACK_DAYS,
+  MIN_REPORT_PRESET_DAYS,
   UI_LABEL_KEYS,
   type FieldListKey,
+  type ReportPreset,
   type UiLabelKey,
 } from "../sales-config";
 
@@ -39,6 +46,8 @@ export type FieldSettings = {
   fields: FieldDefinition[];
   views: Record<ViewKey, ViewColumn[]>;
   sections: FieldSections;
+  historyLookbackDays: number;
+  reportPresets: ReportPreset[];
 };
 export type NormalizedFieldOption = { value: string; label: string; sortOrder: number; isActive: boolean };
 
@@ -47,6 +56,7 @@ export type {
   FieldEntity,
   FieldInputType,
   FieldSectionKey,
+  ReportPreset,
   ViewColumn,
   ViewKey,
 };
@@ -98,6 +108,8 @@ export function defaultFieldSettings(): FieldSettings {
     fields: DEFAULT_FIELD_DEFINITIONS.map((field) => ({ ...field })),
     views: defaultViewColumns(),
     sections: defaultFieldSections(),
+    historyLookbackDays: DEFAULT_HISTORY_LOOKBACK_DAYS,
+    reportPresets: DEFAULT_REPORT_PRESETS.map((preset) => ({ ...preset })),
   };
 }
 
@@ -334,4 +346,92 @@ export function normalizeSectionsUpdate(value: unknown) {
 
 export function emptyViews(): Record<ViewKey, ViewColumn[]> {
   return Object.fromEntries(VIEW_KEYS.map((key) => [key, []])) as Record<ViewKey, ViewColumn[]>;
+}
+
+export function interpolateLabel(template: string, values: Record<string, string | number>) {
+  return template.replaceAll(/\{([a-zA-Z]+)\}/g, (match, key: string) => (
+    values[key] === undefined ? match : String(values[key])
+  ));
+}
+
+export function normalizeHistoryLookbackDays(value: unknown) {
+  const days = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(days) || days < MIN_HISTORY_LOOKBACK_DAYS || days > MAX_HISTORY_LOOKBACK_DAYS) {
+    throw new FieldSettingsError(`History lookback must be a whole number from ${MIN_HISTORY_LOOKBACK_DAYS} to ${MAX_HISTORY_LOOKBACK_DAYS} days.`);
+  }
+  return days;
+}
+
+export function parseStoredHistoryLookbackDays(raw: string | null | undefined) {
+  if (!raw) return DEFAULT_HISTORY_LOOKBACK_DAYS;
+  try {
+    return normalizeHistoryLookbackDays(JSON.parse(raw) as unknown);
+  } catch {
+    try {
+      return normalizeHistoryLookbackDays(raw);
+    } catch {
+      return DEFAULT_HISTORY_LOOKBACK_DAYS;
+    }
+  }
+}
+
+function presetIdFromLabel(label: string, used: Set<string>) {
+  const base = label.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "report-range";
+  let id = base;
+  let suffix = 2;
+  while (used.has(id)) {
+    id = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(id);
+  return id;
+}
+
+export function normalizeReportPresets(value: unknown): ReportPreset[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new FieldSettingsError("Add at least one report range.");
+  }
+  const usedIds = new Set<string>();
+  const usedDays = new Set<number>();
+  const presets = value.map((item) => {
+    if (!item || typeof item !== "object") throw new FieldSettingsError("Each report range needs a label and a day count.");
+    const data = item as Record<string, unknown>;
+    const label = typeof data.label === "string" ? data.label.trim() : "";
+    if (!label) throw new FieldSettingsError("Each report range needs a label.");
+    if (label.length > 80) throw new FieldSettingsError("Report range labels must be 80 characters or fewer.");
+    const days = typeof data.days === "number" ? data.days : Number(data.days);
+    if (!Number.isInteger(days) || days < MIN_REPORT_PRESET_DAYS || days > MAX_REPORT_PRESET_DAYS) {
+      throw new FieldSettingsError(`Report ranges must be a whole number from ${MIN_REPORT_PRESET_DAYS} to ${MAX_REPORT_PRESET_DAYS} days.`);
+    }
+    if (usedDays.has(days)) throw new FieldSettingsError(`A report range for ${days} days is already on the list.`);
+    usedDays.add(days);
+    const requestedId = typeof data.id === "string" ? data.id.trim() : "";
+    const id = requestedId && !usedIds.has(requestedId) ? requestedId : presetIdFromLabel(label, usedIds);
+    usedIds.add(id);
+    return { id, label, days };
+  });
+  return presets;
+}
+
+export function parseStoredReportPresets(raw: string | null | undefined): ReportPreset[] {
+  if (!raw) return DEFAULT_REPORT_PRESETS.map((preset) => ({ ...preset }));
+  try {
+    return normalizeReportPresets(JSON.parse(raw) as unknown);
+  } catch {
+    return DEFAULT_REPORT_PRESETS.map((preset) => ({ ...preset }));
+  }
+}
+
+export function leadDateCutoff(days: number, now = new Date()) {
+  const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  cutoff.setUTCDate(cutoff.getUTCDate() - (days - 1));
+  return cutoff.toISOString().slice(0, 10);
+}
+
+export function historyCutoffIso(days: number, now = new Date()) {
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export function reportExportFilename(days: number) {
+  return `rosetta-sales-last-${days}-days.csv`;
 }

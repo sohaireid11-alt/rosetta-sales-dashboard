@@ -1,11 +1,13 @@
 import {
   ClientFollowUpValidationError,
   clientFollowUpError,
+  findClientFollowUp,
   readClientFollowUpInput,
   removeClientFollowUp,
   updateClientFollowUp,
 } from "../client-follow-up-utils";
 import { AccessError, requireRole } from "../../../lib/access";
+import { actorLabel, recordAuditEvent } from "../../../lib/audit";
 
 function readId(value: string) {
   const id = Number(value);
@@ -15,10 +17,17 @@ function readId(value: string) {
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin"]);
     const { id } = await context.params;
     const followUp = await updateClientFollowUp(readId(id), await readClientFollowUpInput(await request.json()));
     if (!followUp) return Response.json({ error: "Client follow-up not found." }, { status: 404 });
+    await recordAuditEvent({
+      actor: user,
+      actionType: "update",
+      entityType: "client_follow_up",
+      entityId: followUp.id,
+      summary: `${actorLabel(user)} updated client-care record ${followUp.clientName}`,
+    });
     return Response.json({ followUp });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : error instanceof ClientFollowUpValidationError ? 400 : 500;
@@ -28,10 +37,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin"]);
     const { id } = await context.params;
-    const deleted = await removeClientFollowUp(readId(id));
-    if (!deleted) return Response.json({ error: "Client follow-up not found." }, { status: 404 });
+    const followUpId = readId(id);
+    const existing = await findClientFollowUp(followUpId);
+    const deleted = await removeClientFollowUp(followUpId);
+    if (!deleted || !existing) return Response.json({ error: "Client follow-up not found." }, { status: 404 });
+    await recordAuditEvent({
+      actor: user,
+      actionType: "delete",
+      entityType: "client_follow_up",
+      entityId: existing.id,
+      summary: `${actorLabel(user)} removed client-care record ${existing.clientName}`,
+    });
     return new Response(null, { status: 204 });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;
