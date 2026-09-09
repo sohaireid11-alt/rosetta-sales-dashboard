@@ -17,6 +17,7 @@ test("admin catalog seeds every current sales and client-care field", async () =
     "relationshipType",
     "satisfactionStatus",
     "activityType",
+    "status",
   ]) {
     assert.match(catalog, new RegExp(`"${key}"`));
   }

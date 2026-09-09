@@ -1,6 +1,7 @@
 import { DEFAULT_FIELD_DEFINITIONS, findFieldDefinition } from "../../admin-catalog";
 import { getFieldSettings, getOptionLists } from "../field-settings/field-settings-utils";
 import { parseStoredValues, serializeStoredValues } from "../../lib/field-values";
+import { RecordValidationError, updateLinkedLeadStage, type SalesRecord } from "../deals/record-utils";
 import { getDatabase } from "../../../db";
 
 export type ClientFollowUp = {
@@ -17,9 +18,12 @@ export type ClientFollowUp = {
   createdAt: string;
   updatedAt: string;
   linkedLeadName: string | null;
+  status: string | null;
 };
 
-export type ClientFollowUpInput = Omit<ClientFollowUp, "id" | "createdAt" | "updatedAt" | "linkedLeadName">;
+export type ClientFollowUpInput = Omit<ClientFollowUp, "id" | "createdAt" | "updatedAt" | "linkedLeadName" | "status"> & {
+  status: string | null;
+};
 export class ClientFollowUpValidationError extends Error {}
 
 function requiredText(value: unknown, label: string, limit = 160) {
@@ -68,12 +72,19 @@ export async function readClientFollowUpInput(payload: unknown): Promise<ClientF
   const nextActionField = findFieldDefinition(fields, "client_follow_up", "nextAction");
   const relationshipField = findFieldDefinition(fields, "client_follow_up", "relationshipType");
   const satisfactionField = findFieldDefinition(fields, "client_follow_up", "satisfactionStatus");
+  const statusField = findFieldDefinition(fields, "client_follow_up", "status") ?? findFieldDefinition(fields, "sales_record", "stage");
   const nextAction = option(data.nextAction, lists.followUpActions, "Next action", {
     required: false,
     allowMultiple: nextActionField?.inputType === "multiselect",
   });
+  const rawStatus = data.status ?? data.stage;
+  const status = option(rawStatus, lists.statuses, statusField?.label ?? "Status", {
+    required: false,
+    allowMultiple: false,
+  }) || null;
   return {
     salesRecordId,
+    status,
     clientName: requiredText(data.clientName, "Client name"),
     relationshipType: option(data.relationshipType, lists.relationshipTypes, "Relationship type", {
       required: relationshipField?.isRequired !== false,
@@ -97,7 +108,8 @@ const selectColumns = `
   client_follow_ups.last_check_in_at AS lastCheckInAt, client_follow_ups.satisfaction_status AS satisfactionStatus,
   client_follow_ups.next_follow_up_at AS nextFollowUpAt, client_follow_ups.next_action AS nextAction,
   client_follow_ups.expansion_opportunity AS expansionOpportunity, client_follow_ups.created_at AS createdAt,
-  client_follow_ups.updated_at AS updatedAt, sales_records.lead_name AS linkedLeadName
+  client_follow_ups.updated_at AS updatedAt, sales_records.lead_name AS linkedLeadName,
+  sales_records.stage AS status
 `;
 
 const followUpJoin = "FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id";
@@ -181,6 +193,24 @@ export async function removeClientFollowUp(id: number) {
   const database = await getDatabase();
   const result = await database.prepare("DELETE FROM client_follow_ups WHERE id = ?").bind(id).run();
   return result.meta.changes > 0;
+}
+
+export function canWriteLinkedLeadStatus(role: string) {
+  return role === "admin";
+}
+
+export async function applyLinkedLeadStatusFromCare(
+  salesRecordId: number | null,
+  status: string | null | undefined,
+  role: string
+): Promise<SalesRecord | null> {
+  if (!canWriteLinkedLeadStatus(role)) return null;
+  try {
+    return await updateLinkedLeadStage(salesRecordId, status);
+  } catch (error) {
+    if (error instanceof RecordValidationError) throw new ClientFollowUpValidationError(error.message);
+    throw error;
+  }
 }
 
 export function clientFollowUpError(error: unknown) {

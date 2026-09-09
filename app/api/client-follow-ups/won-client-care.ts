@@ -50,6 +50,7 @@ export function careInputFromWonLead(
 ): ClientFollowUpInput {
   return {
     salesRecordId: record.id,
+    status: null,
     clientName: record.leadName,
     relationshipType: relationshipTypeForWonLead(record.opportunityType, lists.relationshipTypes),
     lastEngagementAt: careDateFromRecord(record.closedAt) ?? careDateFromRecord(record.createdAt),

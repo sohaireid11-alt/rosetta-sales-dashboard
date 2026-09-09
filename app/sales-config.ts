@@ -105,7 +105,7 @@ export const FIELD_LIST_DEFAULTS: Record<FieldListKey, readonly string[]> = {
 };
 
 export const FIELD_LIST_META: Record<FieldListKey, { title: string; description: string }> = {
-  statuses: { title: "Lead statuses", description: "Dropdown choices for pipeline stage on sales records." },
+  statuses: { title: "Lead statuses", description: "Dropdown choices for pipeline stage on sales records and the Client Care Status column." },
   sourceTypes: { title: "Source types", description: "Dropdown choices for how a lead first reached Rosetta." },
   services: { title: "Services", description: "Dropdown choices for service lines on new and edited sales records." },
   interpretationDeliveries: { title: "Interpretation delivery", description: "Dropdown choices for in-person or virtual delivery." },

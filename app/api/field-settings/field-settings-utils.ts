@@ -213,14 +213,22 @@ async function seedViewColumns(now: string) {
     "SELECT view_key AS viewKey, column_key AS columnKey FROM app_view_columns"
   ).all<{ viewKey: string; columnKey: string }>();
   const present = new Set(existing.results.map((row) => `${row.viewKey}\u0000${row.columnKey}`));
-  const inserts = DEFAULT_VIEW_COLUMNS
+  const missing = DEFAULT_VIEW_COLUMNS
     .filter((column) => !present.has(`${column.viewKey}\u0000${column.columnKey}`))
-    .map((column) => database.prepare(
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.columnKey.localeCompare(right.columnKey));
+  if (!missing.length) return;
+  const statements = missing.flatMap((column) => [
+    database.prepare(
+      "UPDATE app_view_columns SET sort_order = sort_order + 1, updated_at = ? WHERE view_key = ? AND sort_order >= ?"
+    ).bind(now, column.viewKey, column.sortOrder),
+    database.prepare(
       "INSERT INTO app_view_columns (view_key, column_key, label, is_visible, sort_order, is_locked, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
     ).bind(
       column.viewKey, column.columnKey, column.label, column.isVisible ? 1 : 0, column.sortOrder, column.isLocked ? 1 : 0, now
-    ));
-  if (inserts.length) await database.batch(inserts);
+    ),
+  ]);
+  await database.batch(statements);
 }
 
 export async function getFieldSettings(includeRetired = false): Promise<FieldSettings> {
@@ -296,8 +304,16 @@ async function loadViewColumns() {
   }
   const defaults = defaultFieldSettings().views;
   for (const viewKey of Object.keys(defaults) as ViewKey[]) {
-    if (views[viewKey].length) continue;
-    views[viewKey] = defaults[viewKey];
+    if (!views[viewKey].length) {
+      views[viewKey] = defaults[viewKey];
+      continue;
+    }
+    const present = new Set(views[viewKey].map((column) => column.columnKey));
+    const missing = defaults[viewKey].filter((column) => !present.has(column.columnKey));
+    if (!missing.length) continue;
+    views[viewKey] = [...views[viewKey], ...missing].sort(
+      (left, right) => left.sortOrder - right.sortOrder || left.columnKey.localeCompare(right.columnKey)
+    );
   }
   return views;
 }

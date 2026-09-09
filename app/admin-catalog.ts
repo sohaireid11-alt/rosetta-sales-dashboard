@@ -107,9 +107,10 @@ export const DEFAULT_FIELD_DEFINITIONS: FieldDefinition[] = [
   field("nextAction", "sales_record", "sales_next", 3, "Action needed", "select", { listKey: "followUpActions", helpText: "Required when status is Pending. Switch to multi-select to assign several next steps." }),
   field("initialNote", "sales_record", "sales_next", 4, "First activity note", "textarea", { typeLocked: true, helpText: "Saved as its own dated activity. Shown only when adding a record." }),
   field("salesRecordId", "client_follow_up", "care_relationship", 0, "Linked won lead", "select", { typeLocked: true, showOnContributor: false, helpText: "Optional link to a won sales record." }),
-  field("clientName", "client_follow_up", "care_relationship", 1, "Client name", "text", { isRequired: true, typeLocked: true, showOnContributor: false }),
-  field("relationshipType", "client_follow_up", "care_relationship", 2, "Relationship type", "select", { isRequired: true, listKey: "relationshipTypes", showOnContributor: false }),
-  field("lastEngagementAt", "client_follow_up", "care_relationship", 3, "Last service date", "date", { typeLocked: true, showOnContributor: false }),
+  field("status", "client_follow_up", "care_relationship", 1, "Status", "select", { typeLocked: true, listKey: "statuses", showOnContributor: false, helpText: "Pipeline status of the linked sales lead. Changing this updates that lead — it is not a separate client-care status." }),
+  field("clientName", "client_follow_up", "care_relationship", 2, "Client name", "text", { isRequired: true, typeLocked: true, showOnContributor: false }),
+  field("relationshipType", "client_follow_up", "care_relationship", 3, "Relationship type", "select", { isRequired: true, listKey: "relationshipTypes", showOnContributor: false }),
+  field("lastEngagementAt", "client_follow_up", "care_relationship", 4, "Last service date", "date", { typeLocked: true, showOnContributor: false }),
   field("satisfactionStatus", "client_follow_up", "care_checkin", 0, "Satisfaction status", "select", { isRequired: true, listKey: "satisfactionStatuses", showOnContributor: false }),
   field("lastCheckInAt", "client_follow_up", "care_checkin", 1, "Last satisfaction check-in", "date", { typeLocked: true, showOnContributor: false }),
   field("nextFollowUpAt", "client_follow_up", "care_checkin", 2, "Next follow-up date", "date", { typeLocked: true, showOnContributor: false, storageColumn: "nextFollowUpAt" }),
@@ -140,17 +141,18 @@ export const DEFAULT_VIEW_COLUMNS: ViewColumn[] = [
   { viewKey: "sales_records", columnKey: "value", label: "Value", isVisible: true, sortOrder: 5, isLocked: false },
   { viewKey: "sales_records", columnKey: "actions", label: "Actions", isVisible: true, sortOrder: 6, isLocked: true },
   { viewKey: "client_care", columnKey: "client", label: "Client", isVisible: true, sortOrder: 0, isLocked: true },
-  { viewKey: "client_care", columnKey: "relationship", label: "Relationship", isVisible: true, sortOrder: 1, isLocked: false },
-  { viewKey: "client_care", columnKey: "satisfaction", label: "Satisfaction", isVisible: true, sortOrder: 2, isLocked: false },
-  { viewKey: "client_care", columnKey: "lastCheckIn", label: "Last check-in", isVisible: true, sortOrder: 3, isLocked: false },
-  { viewKey: "client_care", columnKey: "nextAction", label: "Next action", isVisible: true, sortOrder: 4, isLocked: false },
-  { viewKey: "client_care", columnKey: "nextFollowUp", label: "Next follow-up", isVisible: true, sortOrder: 5, isLocked: false },
-  { viewKey: "client_care", columnKey: "actions", label: "Actions", isVisible: true, sortOrder: 6, isLocked: true },
+  { viewKey: "client_care", columnKey: "status", label: "Status", isVisible: true, sortOrder: 1, isLocked: false },
+  { viewKey: "client_care", columnKey: "relationship", label: "Relationship", isVisible: true, sortOrder: 2, isLocked: false },
+  { viewKey: "client_care", columnKey: "satisfaction", label: "Satisfaction", isVisible: true, sortOrder: 3, isLocked: false },
+  { viewKey: "client_care", columnKey: "lastCheckIn", label: "Last check-in", isVisible: true, sortOrder: 4, isLocked: false },
+  { viewKey: "client_care", columnKey: "nextAction", label: "Next action", isVisible: true, sortOrder: 5, isLocked: false },
+  { viewKey: "client_care", columnKey: "nextFollowUp", label: "Next follow-up", isVisible: true, sortOrder: 6, isLocked: false },
+  { viewKey: "client_care", columnKey: "actions", label: "Actions", isVisible: true, sortOrder: 7, isLocked: true },
 ];
 
 export const VIEW_META: Record<ViewKey, { title: string; description: string }> = {
   sales_records: { title: "Sales records table", description: "Columns on the Sales records tab. Hidden columns stay in exports and forms." },
-  client_care: { title: "Client care table", description: "Columns on the Client care tab. Hidden columns stay in the follow-up form." },
+  client_care: { title: "Client care table", description: "Columns on the Client care tab, including Status from the linked sales lead. Hidden columns stay in the follow-up form." },
 };
 
 export const COMING_NEXT = [
