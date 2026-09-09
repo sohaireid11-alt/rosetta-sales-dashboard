@@ -23,6 +23,7 @@ import {
   defaultFieldSettings,
   firstActiveValue,
   labelFor,
+  visibleOptions,
   type FieldSettings,
 } from "./lib/field-settings-core";
 import { displayChoices, includesChoice, parseStoredValues } from "./lib/field-values";
@@ -78,11 +79,13 @@ type ClientFollowUp = {
   createdAt: string;
   updatedAt: string;
   linkedLeadName: string | null;
+  status: string | null;
 };
 type RecordForm = SalesFormValues;
 type ClientFollowUpForm = {
   salesRecordId: string;
   clientName: string;
+  status: string;
   relationshipType: FormValue;
   lastEngagementAt: string;
   lastCheckInAt: string;
@@ -117,6 +120,7 @@ function emptyClientFollowUpForm(settings: FieldSettings = defaultFieldSettings(
   return {
     salesRecordId: "",
     clientName: "",
+    status: "",
     relationshipType: relationship?.inputType === "multiselect" ? [] : firstActiveValue(settings.lists.relationshipTypes, "Recurring client"),
     lastEngagementAt: "",
     lastCheckInAt: "",
@@ -517,6 +521,7 @@ export default function Home() {
     setClientForm({
       salesRecordId: item.salesRecordId ? String(item.salesRecordId) : "",
       clientName: item.clientName,
+      status: parseStoredValues(item.status)[0] ?? item.status ?? "",
       relationshipType: relationship?.inputType === "multiselect" ? parseStoredValues(item.relationshipType) : item.relationshipType,
       lastEngagementAt: item.lastEngagementAt ?? "",
       lastCheckInAt: item.lastCheckInAt ?? "",
@@ -532,11 +537,39 @@ export default function Home() {
     const url = editingClientFollowUp ? `/api/client-follow-ups/${editingClientFollowUp.id}` : "/api/client-follow-ups";
     try {
       const response = await fetch(url, { method: editingClientFollowUp ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(clientForm) });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; followUp?: unknown };
       if (!response.ok) throw new Error(payload.error ?? "Unable to save the client follow-up.");
-      setIsClientFormOpen(false); setNotice(editingClientFollowUp ? "Client follow-up updated." : "Client follow-up added."); await loadWorkspace();
+      setIsClientFormOpen(false);
+      setNotice(payload.followUp == null ? "Lead status updated. This client left Client Care because the lead is no longer Won." : editingClientFollowUp ? "Client follow-up updated." : "Client follow-up added.");
+      await loadWorkspace();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to save the client follow-up."); }
     finally { setIsSaving(false); }
+  }
+  async function saveClientCareStatus(item: ClientFollowUp, status: string) {
+    if (!item.salesRecordId || status === (parseStoredValues(item.status)[0] ?? item.status ?? "")) return;
+    setError("");
+    try {
+      const response = await fetch(`/api/client-follow-ups/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          salesRecordId: item.salesRecordId,
+          clientName: item.clientName,
+          relationshipType: item.relationshipType,
+          lastEngagementAt: item.lastEngagementAt,
+          lastCheckInAt: item.lastCheckInAt,
+          satisfactionStatus: item.satisfactionStatus,
+          nextFollowUpAt: item.nextFollowUpAt,
+          nextAction: item.nextAction,
+          expansionOpportunity: item.expansionOpportunity,
+          status,
+        }),
+      });
+      const payload = await response.json() as { error?: string; followUp?: unknown };
+      if (!response.ok) throw new Error(payload.error ?? "Unable to update status.");
+      setNotice(payload.followUp == null ? "Lead status updated. This client left Client Care because the lead is no longer Won." : "Lead status updated.");
+      await loadWorkspace();
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to update status."); }
   }
   async function deleteClientFollowUp(item: ClientFollowUp) {
     if (!window.confirm(`Remove the client-care record for ${item.clientName}?`)) return;
@@ -612,6 +645,7 @@ export default function Home() {
       </> : null}
       {!isLoading && activeView === "client-care" ? <section className="records-section client-care-section"><div className="client-care-heading"><div><p className="eyebrow">{labels.careSectionEyebrow}</p><h2>{labels.careSectionHeading}</h2><p className="table-note">{labels.careSectionNote}</p>{fieldSettings.includeWonLeadsInClientCare ? <p className="table-note">{labels.careWonLeadsNote}</p> : null}</div></div><div className="table-wrap"><table><thead><tr>
         {columnVisible(fieldSettings, "client_care", "client") ? <th>{columnLabel(fieldSettings, "client_care", "client", "Client")}</th> : null}
+        {columnVisible(fieldSettings, "client_care", "status") ? <th>{columnLabel(fieldSettings, "client_care", "status", "Status")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "relationship") ? <th>{columnLabel(fieldSettings, "client_care", "relationship", "Relationship")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "satisfaction") ? <th>{columnLabel(fieldSettings, "client_care", "satisfaction", "Satisfaction")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "lastCheckIn") ? <th>{columnLabel(fieldSettings, "client_care", "lastCheckIn", "Last check-in")}</th> : null}
@@ -620,6 +654,10 @@ export default function Home() {
         {columnVisible(fieldSettings, "client_care", "actions") ? <th aria-label="Actions" /> : null}
       </tr></thead><tbody>{clientFollowUps.map((item) => <tr key={item.id}>
         {columnVisible(fieldSettings, "client_care", "client") ? <td><strong>{item.clientName}</strong><small>{item.linkedLeadName ? `${labels.linkedToPrefix} ${item.linkedLeadName}` : labels.notLinkedLead}</small></td> : null}
+        {columnVisible(fieldSettings, "client_care", "status") ? <td>{item.salesRecordId && item.status ? (
+          isAdmin ? <select className="table-select" aria-label={columnLabel(fieldSettings, "client_care", "status", "Status")} value={parseStoredValues(item.status)[0] ?? item.status} onChange={(event) => void saveClientCareStatus(item, event.target.value)}>{visibleOptions(lists.statuses, item.status).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+          : <span className={stageClass(parseStoredValues(item.status)[0] ?? item.status)}>{choiceLabel(lists.statuses, item.status)}</span>
+        ) : <span className="muted-copy">{labels.notLinkedLead}</span>}</td> : null}
         {columnVisible(fieldSettings, "client_care", "relationship") ? <td>{choiceLabel(lists.relationshipTypes, item.relationshipType)}<small>Last service: {dateLabel(item.lastEngagementAt, labels.notScheduled)}</small></td> : null}
         {columnVisible(fieldSettings, "client_care", "satisfaction") ? <td><span className={`care-status care-${(parseStoredValues(item.satisfactionStatus)[0] ?? item.satisfactionStatus).toLowerCase().replaceAll(" ", "-")}`}>{choiceLabel(lists.satisfactionStatuses, item.satisfactionStatus)}</span></td> : null}
         {columnVisible(fieldSettings, "client_care", "lastCheckIn") ? <td>{dateLabel(item.lastCheckInAt, labels.notScheduled)}</td> : null}
@@ -658,7 +696,7 @@ export default function Home() {
         if (!sectionFields.length) return null;
         return <div className="form-section" key={sectionKey}><h3>{sectionTitle(fieldSettings, sectionKey, labels.sectionCareRelationship)}</h3><div className="form-grid">
           {sectionFields.map((field) => field.fieldKey === "salesRecordId" ? (
-            <label key={field.fieldKey}>{field.label}{field.isRequired ? null : <span className="optional"> {labels.optionalMark}</span>}<select value={clientForm.salesRecordId} onChange={(event) => { const selected = records.find((record) => record.id === Number(event.target.value)); setClientForm({ ...clientForm, salesRecordId: event.target.value, clientName: selected ? selected.leadName : clientForm.clientName }); }}><option value="">{labels.selectPlaceholder}</option>{records.filter((record) => {
+            <label key={field.fieldKey}>{field.label}{field.isRequired ? null : <span className="optional"> {labels.optionalMark}</span>}<select value={clientForm.salesRecordId} onChange={(event) => { const selected = records.find((record) => record.id === Number(event.target.value)); setClientForm({ ...clientForm, salesRecordId: event.target.value, clientName: selected ? selected.leadName : clientForm.clientName, status: selected ? (parseStoredValues(selected.stage)[0] ?? selected.stage) : "" }); }}><option value="">{labels.selectPlaceholder}</option>{records.filter((record) => {
               const linkedElsewhere = clientFollowUps.some((item) => item.salesRecordId === record.id && item.id !== editingClientFollowUp?.id);
               const isCurrentLink = record.id === Number(clientForm.salesRecordId);
               return !linkedElsewhere && (includesChoice(record.stage, WON_STAGE) || isCurrentLink);
@@ -669,8 +707,10 @@ export default function Home() {
               field={field}
               value={(clientForm as Record<string, FormValue>)[field.fieldKey] ?? (field.inputType === "multiselect" ? [] : "")}
               options={field.listKey ? lists[field.listKey] : undefined}
+              required={field.fieldKey === "status" ? false : undefined}
+              disabled={field.fieldKey === "status" ? !isAdmin || !clientForm.salesRecordId : undefined}
               optionalMark={labels.optionalMark}
-              selectPlaceholder={labels.selectPlaceholder}
+              selectPlaceholder={field.fieldKey === "status" && !clientForm.salesRecordId ? labels.notLinkedLead : labels.selectPlaceholder}
               onChange={(next) => setClientForm({ ...clientForm, [field.fieldKey]: next })}
             />
           ))}

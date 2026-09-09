@@ -1,5 +1,6 @@
 import {
   ClientFollowUpValidationError,
+  applyLinkedLeadStatusFromCare,
   clientFollowUpError,
   findClientFollowUp,
   readClientFollowUpInput,
@@ -8,7 +9,8 @@ import {
 } from "../client-follow-up-utils";
 import { AccessError, requireRole } from "../../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../../lib/audit";
-import { deleteFollowUpCalendarSafe, syncClientCareCalendar } from "../../../lib/calendar-sync";
+import { deleteFollowUpCalendarSafe, syncClientCareCalendar, syncSalesFollowUpCalendar } from "../../../lib/calendar-sync";
+import { ensureWonClientFollowUps } from "../won-client-care";
 
 function readId(value: string) {
   const id = Number(value);
@@ -20,8 +22,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const user = await requireRole(request, ["admin", "contributor"]);
     const { id } = await context.params;
-    const followUp = await updateClientFollowUp(readId(id), await readClientFollowUpInput(await request.json()));
+    const input = await readClientFollowUpInput(await request.json());
+    let followUp = await updateClientFollowUp(readId(id), input);
     if (!followUp) return Response.json({ error: "Client follow-up not found." }, { status: 404 });
+    const record = await applyLinkedLeadStatusFromCare(followUp.salesRecordId, input.status, user.role);
+    if (record) {
+      await recordAuditEvent({
+        actor: user,
+        actionType: "update",
+        entityType: "sales_record",
+        entityId: record.id,
+        summary: `${actorLabel(user)} updated lead ${record.leadName} status from Client Care`,
+      });
+      await syncSalesFollowUpCalendar(record);
+      await ensureWonClientFollowUps({ actor: user, salesRecordId: record.id });
+      const remaining = await findClientFollowUp(followUp.id);
+      if (!remaining) return Response.json({ followUp: null });
+      followUp = remaining;
+    }
     await recordAuditEvent({
       actor: user,
       actionType: "update",

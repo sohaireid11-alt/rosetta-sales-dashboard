@@ -105,7 +105,7 @@ export const FIELD_LIST_DEFAULTS: Record<FieldListKey, readonly string[]> = {
 };
 
 export const FIELD_LIST_META: Record<FieldListKey, { title: string; description: string }> = {
-  statuses: { title: "Lead statuses", description: "Dropdown choices for pipeline stage on sales records." },
+  statuses: { title: "Lead statuses", description: "Dropdown choices for pipeline stage on sales records and the Client Care Status column." },
   sourceTypes: { title: "Source types", description: "Dropdown choices for how a lead first reached Rosetta." },
   services: { title: "Services", description: "Dropdown choices for service lines on new and edited sales records." },
   interpretationDeliveries: { title: "Interpretation delivery", description: "Dropdown choices for in-person or virtual delivery." },
@@ -446,8 +446,8 @@ export const DEFAULT_UI_LABELS: Record<UiLabelKey, string> = {
   noExpansionNote: "No expansion note",
   linkedToPrefix: "Linked to",
   wonLeadsInClientCareLabel: "Show / auto-add Won leads in Client Care",
-  wonLeadsInClientCareHint: "When on, every Won sales record gets a client-care row if it does not already have one. Turning this off stops adding new Won leads. Existing care records stay on the list, including after a lead moves away from Won.",
-  careWonLeadsNote: "Won leads are added here automatically. Changing a lead away from Won does not remove this care record.",
+  wonLeadsInClientCareHint: "When on, every Won sales record gets a client-care row if it does not already have one, and Client Care stays Won-only: changing a lead away from Won removes that linked care row. Turning this off stops adding new Won leads and stops auto-removing rows when a lead leaves Won. Existing care records then stay until you delete them.",
+  careWonLeadsNote: "Won leads are added here automatically. Changing a lead away from Won removes that care record.",
   formLeadWorkspace: "Lead workspace",
   formUpdateSalesRecord: "Update sales record",
   formClientCare: "Client care",
@@ -647,7 +647,7 @@ export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; gr
   notLinkedLead: { group: "clientCare", title: "Unlinked client fallback", hint: "Shown when a follow-up is not linked to a lead." },
   noExpansionNote: { group: "clientCare", title: "Missing expansion fallback", hint: "Shown when expansion opportunity is empty." },
   linkedToPrefix: { group: "clientCare", title: "Linked lead prefix", hint: "Appears before the linked lead name." },
-  wonLeadsInClientCareLabel: { group: "clientCare", title: "Won leads admin toggle", hint: "Checkbox label under History & reports for auto-adding Won leads to Client care." },
+  wonLeadsInClientCareLabel: { group: "clientCare", title: "Won leads admin toggle", hint: "Checkbox label under History & reports for auto-adding Won leads to Client care and removing them when they leave Won." },
   wonLeadsInClientCareHint: { group: "clientCare", title: "Won leads admin hint", hint: "Help text under the Won-leads Client care toggle." },
   careWonLeadsNote: { group: "clientCare", title: "Won leads table note", hint: "Shown under the Client care table heading when the Won-leads toggle is on." },
   formLeadWorkspace: { group: "forms", title: "Sales form eyebrow", hint: "Small label on the add/edit sales record modal." },

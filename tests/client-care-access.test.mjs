@@ -88,12 +88,14 @@ test("listClientFollowUps qualifies next_follow_up_at so the sales_records join 
   assert.match(followUpListOrder, /client_follow_ups\.next_follow_up_at IS NULL/);
   assert.match(followUpListOrder, /client_follow_ups\.next_follow_up_at ASC/);
   assert.match(selectColumns, /client_follow_ups\.next_follow_up_at AS nextFollowUpAt/);
+  assert.match(selectColumns, /sales_records\.stage AS status/);
 
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE sales_records (
       id INTEGER PRIMARY KEY,
       lead_name TEXT,
+      stage TEXT,
       next_follow_up_at TEXT,
       next_action TEXT,
       created_at TEXT
@@ -112,12 +114,16 @@ test("listClientFollowUps qualifies next_follow_up_at so the sales_records join 
       created_at TEXT,
       updated_at TEXT
     );
-    INSERT INTO sales_records (id, lead_name, next_follow_up_at, next_action, created_at)
-    VALUES (1, 'Won Lead', '2026-01-02', 'Call', '2026-01-01');
+    INSERT INTO sales_records (id, lead_name, stage, next_follow_up_at, next_action, created_at)
+    VALUES (1, 'Won Lead', 'Won', '2026-01-02', 'Call', '2026-01-01');
     INSERT INTO client_follow_ups (
       id, sales_record_id, client_name, relationship_type, last_engagement_at, last_check_in_at,
       satisfaction_status, next_follow_up_at, next_action, expansion_opportunity, created_at, updated_at
     ) VALUES (1, 1, 'Won Lead', 'Recurring client', NULL, NULL, 'Healthy', '2026-09-10', '', '', '2026-01-01', '2026-01-01');
+    INSERT INTO client_follow_ups (
+      id, sales_record_id, client_name, relationship_type, last_engagement_at, last_check_in_at,
+      satisfaction_status, next_follow_up_at, next_action, expansion_opportunity, created_at, updated_at
+    ) VALUES (2, NULL, 'Unlinked Client', 'Recurring client', NULL, NULL, 'Healthy', NULL, '', '', '2026-01-01', '2026-01-01');
   `);
 
   const unqualifiedOrder = "ORDER BY CASE WHEN next_follow_up_at IS NULL THEN 1 ELSE 0 END, next_follow_up_at ASC, client_follow_ups.id DESC";
@@ -127,8 +133,12 @@ test("listClientFollowUps qualifies next_follow_up_at so the sales_records join 
   );
 
   const rows = db.prepare(`SELECT ${selectColumns} ${followUpJoin} ${followUpListOrder}`).all();
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].clientName, "Won Lead");
-  assert.equal(rows[0].linkedLeadName, "Won Lead");
-  assert.equal(rows[0].nextFollowUpAt, "2026-09-10");
+  assert.equal(rows.length, 2);
+  const linked = rows.find((row) => row.clientName === "Won Lead");
+  const unlinked = rows.find((row) => row.clientName === "Unlinked Client");
+  assert.equal(linked.linkedLeadName, "Won Lead");
+  assert.equal(linked.nextFollowUpAt, "2026-09-10");
+  assert.equal(linked.status, "Won");
+  assert.equal(unlinked.linkedLeadName, null);
+  assert.equal(unlinked.status, null);
 });

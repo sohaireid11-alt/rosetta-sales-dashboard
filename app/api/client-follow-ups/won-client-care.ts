@@ -1,5 +1,6 @@
 import { getDatabase } from "../../../db";
 import { actorLabel, recordAuditEvent, type AuditActor } from "../../lib/audit";
+import { deleteFollowUpCalendarSafe } from "../../lib/calendar-sync";
 import { includesChoice } from "../../lib/field-values";
 import { RELATIONSHIP_TYPES, SATISFACTION_STATUSES, WON_STAGE } from "../../sales-config";
 import { getFieldSettings } from "../field-settings/field-settings-utils";
@@ -20,8 +21,20 @@ type WonLeadRow = {
   stage: string;
 };
 
+type LinkedCareRow = {
+  id: number;
+  clientName: string;
+  salesRecordId: number;
+  stage: string;
+};
+
 export function isWonStage(stage: unknown) {
   return includesChoice(stage, WON_STAGE);
+}
+
+/** Linked Client Care rows whose sales lead is no longer Won. Unlinked rows are never included. */
+export function linkedCareRowsLeavingWon<T extends { salesRecordId: number | null; stage: unknown }>(rows: T[]) {
+  return rows.filter((row) => row.salesRecordId != null && !isWonStage(row.stage));
 }
 
 export function careDateFromRecord(value: string | null | undefined) {
@@ -50,6 +63,7 @@ export function careInputFromWonLead(
 ): ClientFollowUpInput {
   return {
     salesRecordId: record.id,
+    status: null,
     clientName: record.leadName,
     relationshipType: relationshipTypeForWonLead(record.opportunityType, lists.relationshipTypes),
     lastEngagementAt: careDateFromRecord(record.closedAt) ?? careDateFromRecord(record.createdAt),
@@ -68,13 +82,25 @@ function optionValues(options: { value: string; isActive: boolean }[], fallback:
   return all.length ? all : [...fallback];
 }
 
+export const staleLinkedCareSelect = `SELECT client_follow_ups.id, client_follow_ups.client_name AS clientName,
+         client_follow_ups.sales_record_id AS salesRecordId, sales_records.stage AS stage
+         FROM client_follow_ups
+         INNER JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id`;
+
+export const deleteClientFollowUpByIdSql = "DELETE FROM client_follow_ups WHERE id = ?";
+
+/**
+ * Won → Client Care sync.
+ * Toggle on: auto-add missing Won rows and delete linked care rows whose lead left Won.
+ * Toggle off: neither auto-add nor auto-remove. Existing care rows stay, including after a lead leaves Won.
+ */
 export async function ensureWonClientFollowUps(options: {
   actor?: AuditActor;
   salesRecordId?: number;
 } = {}) {
   try {
     const settings = await getFieldSettings(true);
-    if (!settings.includeWonLeadsInClientCare) return { created: 0 };
+    if (!settings.includeWonLeadsInClientCare) return { created: 0, removed: 0 };
 
     const lists = {
       relationshipTypes: optionValues(settings.lists.relationshipTypes, RELATIONSHIP_TYPES),
@@ -95,7 +121,6 @@ export async function ensureWonClientFollowUps(options: {
       ? database.prepare(sql).bind(options.salesRecordId)
       : database.prepare(sql);
     const missing = ((await query.all<WonLeadRow>()).results ?? []).filter((record) => isWonStage(record.stage));
-    if (!missing.length) return { created: 0 };
 
     const now = new Date().toISOString();
     const statements = missing.map((record) => {
@@ -130,8 +155,38 @@ export async function ensureWonClientFollowUps(options: {
           : `${actorLabel(options.actor)} added ${created} client-care records for Won leads (${names}${more})`,
       });
     }
-    return { created };
+
+    const staleQuery = options.salesRecordId
+      ? database.prepare(`${staleLinkedCareSelect} WHERE client_follow_ups.sales_record_id = ?`).bind(options.salesRecordId)
+      : database.prepare(staleLinkedCareSelect);
+    const stale = linkedCareRowsLeavingWon((await staleQuery.all<LinkedCareRow>()).results ?? []);
+    let removed = 0;
+    if (stale.length) {
+      const deletes = stale.map((row) => database.prepare(deleteClientFollowUpByIdSql).bind(row.id));
+      for (let index = 0; index < deletes.length; index += batchSize) {
+        const batch = await database.batch(deletes.slice(index, index + batchSize));
+        removed += batch.reduce((total, result) => total + (result.meta.changes ?? 0), 0);
+      }
+      for (const row of stale) {
+        await deleteFollowUpCalendarSafe("client_follow_up", row.id);
+      }
+      if (removed && options.actor) {
+        const names = stale.slice(0, 3).map((row) => row.clientName).join(", ");
+        const more = stale.length > 3 ? ` and ${stale.length - 3} more` : "";
+        await recordAuditEvent({
+          actor: options.actor,
+          actionType: "delete",
+          entityType: "client_follow_up",
+          entityId: options.salesRecordId ?? stale[0].id,
+          summary: removed === 1
+            ? `${actorLabel(options.actor)} removed client-care record ${stale[0].clientName} because the lead left Won`
+            : `${actorLabel(options.actor)} removed ${removed} client-care records after leads left Won (${names}${more})`,
+        });
+      }
+    }
+
+    return { created, removed };
   } catch {
-    return { created: 0 };
+    return { created: 0, removed: 0 };
   }
 }

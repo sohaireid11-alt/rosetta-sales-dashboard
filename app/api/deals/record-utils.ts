@@ -374,6 +374,27 @@ export async function findRecord(id: number) {
   return database.prepare(`SELECT ${selectColumns} FROM sales_records WHERE id = ?`).bind(id).first<SalesRecord>();
 }
 
+export const updateLinkedLeadStageSql = "UPDATE sales_records SET stage = ?, booked_revenue_cents = ? WHERE id = ?";
+
+export async function updateLinkedLeadStage(salesRecordId: number | null | undefined, stageValue: unknown) {
+  if (!salesRecordId) return null;
+  const settings = await getFieldSettings(true);
+  const lists = await getOptionLists();
+  const fields = settings.fields.length ? settings.fields : DEFAULT_FIELD_DEFINITIONS;
+  const selected = parseStoredValues(stageValue);
+  if (!selected.length) return null;
+  const stage = choiceFromField({ stage: stageValue }, "stage", lists, fields, "status");
+  const record = await findRecord(salesRecordId);
+  if (!record) throw new RecordValidationError("Linked sales record not found.");
+  if (includesChoice(stage, PENDING_STAGE) && (!record.nextFollowUpAt || !record.nextAction)) {
+    throw new RecordValidationError("Pending leads need an action and a date of next follow-up.");
+  }
+  const bookedRevenueCents = includesChoice(stage, WON_STAGE) ? record.estimatedRevenueCents : 0;
+  const database = await getDatabase();
+  await database.prepare(updateLinkedLeadStageSql).bind(stage, bookedRevenueCents, salesRecordId).run();
+  return findRecord(salesRecordId);
+}
+
 export async function listActivities(salesRecordId: number) {
   const database = await getDatabase();
   const result = await database.prepare(

@@ -54,9 +54,13 @@ Migration `drizzle/0010_won_leads_client_care.sql`:
 - Inserts a client-care row for each existing `sales_records` row in stage `Won` that is not already linked.
 
 Apply with the usual `wrangler d1 migrations apply` before deploy. The Worker also
-idempotently creates missing Won-lead care rows when an admin opens Client care
-or Admin controls, and when a lead is created, updated, imported, or merged into
-Won. Turning the Admin toggle off stops new auto-adds; existing care rows stay.
+idempotently creates missing Won-lead care rows when Client care or Admin controls
+open, and when a lead is created, updated, imported, or merged into Won.
+Client Care stays Won-only while the Admin toggle is on: changing a linked lead
+away from Won (from Client Care Status, Sales records, or any deal PATCH) deletes
+that `client_follow_ups` row and its calendar event. Unlinked care rows are left
+alone. Turning the toggle off stops new auto-adds and stops auto-removes; existing
+care rows then stay, including after a lead leaves Won.
 
 ## Project structure
 
