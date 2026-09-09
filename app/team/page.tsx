@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { AccessGate } from "../access-gate";
 import { BackControl } from "../back-control";
-import { defaultFieldSettings, type FieldSettings } from "../lib/field-settings-core";
+import { defaultFieldSettings, interpolateLabel, type FieldSettings } from "../lib/field-settings-core";
 import { SettingsMenu } from "../settings-menu";
 
 type AppRole = "admin" | "contributor";
@@ -85,7 +85,7 @@ export default function TeamPage() {
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to create account.");
-      setNotice(`Account created for ${name}. Share the temporary password directly with them.`);
+      setNotice(interpolateLabel(labels.teamNoticeCreated, { name }));
       setName(""); setEmail(""); setRole("contributor"); setTemporaryPassword("");
       await load();
     } catch (createError) {
@@ -97,8 +97,8 @@ export default function TeamPage() {
 
   async function updateAccountRole(user: ManagedUser, nextRole: AppRole) {
     if (nextRole === user.role) { setEditingAccessUserId(null); return; }
-    const roleName = nextRole === "admin" ? "administrator" : "contributor";
-    if (!window.confirm(`Change ${user.displayName}'s access to ${roleName}?`)) return;
+    const roleName = nextRole === "admin" ? labels.teamRoleAdminShort : labels.teamRoleContributorShort;
+    if (!window.confirm(interpolateLabel(labels.teamConfirmChangeRole, { name: user.displayName, role: roleName }))) return;
     setIsSaving(true); setNotice(""); setError("");
     try {
       const response = await fetch(`/api/users/${user.id}`, {
@@ -108,7 +108,7 @@ export default function TeamPage() {
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to update access.");
-      setNotice(`${user.displayName} is now a ${roleName}.`);
+      setNotice(interpolateLabel(labels.teamNoticeRoleChanged, { name: user.displayName, role: roleName }));
       setEditingAccessUserId(null);
       await load();
     } catch (updateError) {
@@ -130,7 +130,7 @@ export default function TeamPage() {
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to reset password.");
-      setNotice(`Password reset for ${user.displayName}. Share the new temporary password directly with them.`);
+      setNotice(interpolateLabel(labels.teamNoticePasswordReset, { name: user.displayName }));
       setResettingUserId(null); setResetPassword("");
       await load();
     } catch (resetError) {
@@ -141,7 +141,7 @@ export default function TeamPage() {
   }
 
   async function removeAccount(user: ManagedUser) {
-    if (!window.confirm(`Remove ${user.displayName}'s access?`)) return;
+    if (!window.confirm(interpolateLabel(labels.teamConfirmRemove, { name: user.displayName }))) return;
     setError("");
     try {
       const response = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
@@ -149,7 +149,7 @@ export default function TeamPage() {
         const payload = await response.json() as { error?: string };
         throw new Error(payload.error ?? "Unable to remove account.");
       }
-      setNotice("Account access removed.");
+      setNotice(labels.teamNoticeRemoved);
       await load();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "Unable to remove account.");
@@ -168,7 +168,7 @@ export default function TeamPage() {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to change password.");
       setCurrentPassword(""); setNewPassword("");
-      setNotice("Your password has been changed.");
+      setNotice(labels.teamNoticePasswordChanged);
       await load();
     } catch (changeError) {
       setError(changeError instanceof Error ? changeError.message : "Unable to change password.");
@@ -195,12 +195,12 @@ export default function TeamPage() {
       <section className="team-grid">
         <form className="team-invite-panel" onSubmit={createAccount}>
           <h2>{labels.teamAddMember}</h2>
-          <label>{labels.teamFieldName}<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Team member name" /></label>
-          <label>{labels.teamFieldEmail}<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" /></label>
+          <label>{labels.teamFieldName}<input required value={name} onChange={(event) => setName(event.target.value)} placeholder={labels.teamPlaceholderName} /></label>
+          <label>{labels.teamFieldEmail}<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={labels.teamPlaceholderEmail} /></label>
           <label>{labels.teamFieldRole}<select value={role} onChange={(event) => setRole(event.target.value as AppRole)}><option value="contributor">{labels.teamRoleContributor}</option><option value="admin">{labels.teamRoleAdmin}</option></select></label>
-          <label>{labels.teamFieldTempPassword}<input required type="text" minLength={12} value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} placeholder="At least 12 characters" /></label>
+          <label>{labels.teamFieldTempPassword}<input required type="text" minLength={12} value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} placeholder={labels.teamPlaceholderPassword} /></label>
           <button type="button" className="secondary-action" onClick={() => setTemporaryPassword(newTemporaryPassword())}>{labels.teamGeneratePassword}</button>
-          <button className="primary-action" type="submit" disabled={isSaving}>{isSaving ? "Saving..." : labels.teamCreateAccount}</button>
+          <button className="primary-action" type="submit" disabled={isSaving}>{isSaving ? labels.teamSaving : labels.teamCreateAccount}</button>
         </form>
         <section className="team-list-panel">
           <div className="panel-heading"><h2>{labels.teamAccounts}</h2><span className="table-note">{users.filter((user) => user.isActive).length} {labels.teamActive.toLowerCase()}</span></div>
@@ -208,7 +208,7 @@ export default function TeamPage() {
             {users.length ? users.map((user) => {
               const isCurrentUser = user.id === session.user?.id;
               return <div className="team-member" key={user.id}>
-                <div><strong>{user.displayName}</strong><span>{user.email}</span><small>{user.role === "admin" ? "Administrator" : "Contributor"} - Last sign-in {dateLabel(user.lastLoginAt)}</small></div>
+                <div><strong>{user.displayName}</strong><span>{user.email}</span><small>{user.role === "admin" ? labels.teamRoleAdminShort : labels.teamRoleContributorShort} - {labels.teamLastSignInPrefix} {dateLabel(user.lastLoginAt)}</small></div>
                 <div className="team-member-actions">
                   <span className={`access-status access-${user.isActive ? "active" : "revoked"}`}>{user.isActive ? labels.teamActive : labels.teamRemoved}</span>
                   {user.isActive && !isCurrentUser ? <>
@@ -217,7 +217,7 @@ export default function TeamPage() {
                     <button className="delete-button" type="button" onClick={() => void removeAccount(user)}>{labels.teamRemove}</button>
                   </> : null}
                 </div>
-                {resettingUserId === user.id ? <form className="password-reset-form" onSubmit={(event) => void resetAccountPassword(event, user)}><label>New temporary password<input required minLength={12} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label><button type="button" className="secondary-action" onClick={() => setResetPassword(newTemporaryPassword())}>Generate</button><button type="submit" className="primary-action" disabled={isSaving}>Save password</button></form> : null}
+                {resettingUserId === user.id ? <form className="password-reset-form" onSubmit={(event) => void resetAccountPassword(event, user)}><label>{labels.teamResetPasswordLabel}<input required minLength={12} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label><button type="button" className="secondary-action" onClick={() => setResetPassword(newTemporaryPassword())}>{labels.teamGenerateShort}</button><button type="submit" className="primary-action" disabled={isSaving}>{labels.teamSavePassword}</button></form> : null}
               </div>;
             }) : <p className="empty-copy">{labels.teamEmpty}</p>}
           </div>

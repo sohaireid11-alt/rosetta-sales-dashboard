@@ -117,7 +117,7 @@ export const DEFAULT_FIELD_DEFINITIONS: FieldDefinition[] = [
   field("nextAction", "client_follow_up", "care_checkin", 3, "Next action", "select", { listKey: "followUpActions", showOnContributor: false }),
   field("expansionOpportunity", "client_follow_up", "care_checkin", 4, "Expansion opportunity", "textarea", { showOnContributor: false, helpText: "Potential next service, renewal, referral, or expansion." }),
   field("activityType", "activity", "activity_entry", 0, "Activity type", "select", { isRequired: true, listKey: "activityTypes", typeLocked: true, showOnContributor: false }),
-  field("content", "activity", "activity_entry", 1, "New note", "textarea", { isRequired: true, typeLocked: true, showOnContributor: false }),
+  field("content", "activity", "activity_entry", 1, "New note", "textarea", { isRequired: true, typeLocked: true, showOnContributor: false, helpText: "What happened, what was sent, or what was agreed?" }),
 ];
 
 export const VIEW_KEYS = ["sales_records", "client_care"] as const;
@@ -160,9 +160,11 @@ export const COMING_NEXT = [
   { title: "Visual conditional rules", detail: "Scheduled Interpretation still reveals delivery and mode automatically. A no-code rule builder for other show/hide logic is next." },
   { title: "Editable pipeline rules", detail: "Pending still requires a next action and date; Won still books revenue. Those business rules will move into this console." },
   { title: "Sign-in page wording", detail: "The sign-in screen loads before settings, so its copy stays in code until a public labels endpoint exists." },
+  { title: "Admin Control Center chrome", detail: "This editor's own tab names and handbook stay in code so admins cannot accidentally blank the page that edits everything else." },
   { title: "Chart formulas and metric math", detail: "Metric titles are editable now. Changing how booked revenue or win rate is calculated still needs a developer." },
   { title: "CSV column mapping", detail: "Import and export keep working. Mapping spreadsheet headers to fields from this screen is next." },
   { title: "Email and notification templates", detail: "Account invites and password notes are still sent by admins directly. Templates will land here. Google Calendar follow-up sync is already on the Calendar tab." },
+  { title: "Worker secrets and OAuth client IDs", detail: "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_SESSION_SECRET, and similar infrastructure stay in Cloudflare. After secrets exist, admins connect Calendar and manage users in-app." },
 ] as const;
 
 export function defaultFieldsByEntity(entity: FieldEntity) {

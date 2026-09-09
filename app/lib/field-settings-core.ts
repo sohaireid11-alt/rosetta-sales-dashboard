@@ -245,7 +245,7 @@ export function normalizeLabelsUpdate(value: unknown) {
     if (!(key in data)) continue;
     const next = typeof data[key] === "string" ? data[key].trim() : "";
     if (!next) throw new FieldSettingsError(`${DEFAULT_UI_LABELS[key]} cannot be empty.`);
-    if (next.length > 200) throw new FieldSettingsError("Labels must be 200 characters or fewer.");
+    if (next.length > 500) throw new FieldSettingsError("Labels must be 500 characters or fewer.");
     labels[key] = next;
   }
   return labels;
