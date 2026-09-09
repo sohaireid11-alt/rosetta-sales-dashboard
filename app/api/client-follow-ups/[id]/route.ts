@@ -36,7 +36,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       });
       await syncSalesFollowUpCalendar(record);
       await ensureWonClientFollowUps({ actor: user, salesRecordId: record.id });
-      followUp = (await findClientFollowUp(followUp.id)) ?? followUp;
+      const remaining = await findClientFollowUp(followUp.id);
+      if (!remaining) return Response.json({ followUp: null });
+      followUp = remaining;
     }
     await recordAuditEvent({
       actor: user,

@@ -19,6 +19,7 @@ const files = {
   merge: new URL("../app/api/deals/[id]/merge/route.ts", import.meta.url),
   followUps: new URL("../app/api/client-follow-ups/route.ts", import.meta.url),
   followUpId: new URL("../app/api/client-follow-ups/[id]/route.ts", import.meta.url),
+  wonCare: new URL("../app/api/client-follow-ups/won-client-care.ts", import.meta.url),
   setup: new URL("../GOOGLE_CALENDAR_SETUP.md", import.meta.url),
   readme: new URL("../README.md", import.meta.url),
   wrangler: new URL("../wrangler.jsonc", import.meta.url),
@@ -135,13 +136,14 @@ test("stores encrypted Google tokens and entity-to-event mappings in D1", async 
 });
 
 test("hooks follow-up create, update, and delete without failing sales CRUD", async () => {
-  const [sync, deals, dealId, merge, followUps, followUpId] = await Promise.all([
+  const [sync, deals, dealId, merge, followUps, followUpId, wonCare] = await Promise.all([
     readFile(files.sync, "utf8"),
     readFile(files.deals, "utf8"),
     readFile(files.dealId, "utf8"),
     readFile(files.merge, "utf8"),
     readFile(files.followUps, "utf8"),
     readFile(files.followUpId, "utf8"),
+    readFile(files.wonCare, "utf8"),
   ]);
   assert.match(sync, /async function syncFollowUpCalendarSafe/);
   assert.match(sync, /Google Calendar follow-up sync failed/);
@@ -154,6 +156,7 @@ test("hooks follow-up create, update, and delete without failing sales CRUD", as
   assert.match(followUps, /syncClientCareCalendar\(followUp\)/);
   assert.match(followUpId, /syncClientCareCalendar\(followUp\)/);
   assert.match(followUpId, /deleteFollowUpCalendarSafe\("client_follow_up"/);
+  assert.match(wonCare, /deleteFollowUpCalendarSafe\("client_follow_up"/);
 });
 
 test("admin Calendar tab is editable and OAuth is admin-only", async () => {

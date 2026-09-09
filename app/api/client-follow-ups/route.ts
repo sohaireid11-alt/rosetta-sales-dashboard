@@ -44,7 +44,9 @@ export async function POST(request: Request) {
         });
         await syncSalesFollowUpCalendar(record);
         await ensureWonClientFollowUps({ actor: user, salesRecordId: record.id });
-        followUp = (await findClientFollowUp(followUp.id)) ?? followUp;
+        const remaining = await findClientFollowUp(followUp.id);
+        if (!remaining) return Response.json({ followUp: null }, { status: 201 });
+        followUp = remaining;
       }
       await recordAuditEvent({
         actor: user,

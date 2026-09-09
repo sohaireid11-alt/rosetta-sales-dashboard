@@ -143,6 +143,8 @@ test("editing Client Care Status updates the linked sales lead stage", async () 
   assert.match(followUpId, /applyLinkedLeadStatusFromCare\(followUp\.salesRecordId, input\.status, user\.role\)/);
   assert.match(followUpId, /ensureWonClientFollowUps\(\{ actor: user, salesRecordId: record\.id \}\)/);
   assert.match(followUps, /ensureWonClientFollowUps\(\{ actor: user, salesRecordId: record\.id \}\)/);
+  assert.match(followUpId, /return Response.json\(\{ followUp: null \}\)/);
+  assert.match(followUps, /return Response.json\(\{ followUp: null \}/);
   assert.match(followUpId, /syncSalesFollowUpCalendar\(record\)/);
 
   const db = new DatabaseSync(":memory:");

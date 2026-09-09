@@ -537,9 +537,11 @@ export default function Home() {
     const url = editingClientFollowUp ? `/api/client-follow-ups/${editingClientFollowUp.id}` : "/api/client-follow-ups";
     try {
       const response = await fetch(url, { method: editingClientFollowUp ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(clientForm) });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; followUp?: unknown };
       if (!response.ok) throw new Error(payload.error ?? "Unable to save the client follow-up.");
-      setIsClientFormOpen(false); setNotice(editingClientFollowUp ? "Client follow-up updated." : "Client follow-up added."); await loadWorkspace();
+      setIsClientFormOpen(false);
+      setNotice(payload.followUp == null ? "Lead status updated. This client left Client Care because the lead is no longer Won." : editingClientFollowUp ? "Client follow-up updated." : "Client follow-up added.");
+      await loadWorkspace();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to save the client follow-up."); }
     finally { setIsSaving(false); }
   }
@@ -563,9 +565,9 @@ export default function Home() {
           status,
         }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; followUp?: unknown };
       if (!response.ok) throw new Error(payload.error ?? "Unable to update status.");
-      setNotice("Lead status updated.");
+      setNotice(payload.followUp == null ? "Lead status updated. This client left Client Care because the lead is no longer Won." : "Lead status updated.");
       await loadWorkspace();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to update status."); }
   }
