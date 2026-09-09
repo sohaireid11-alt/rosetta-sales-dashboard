@@ -17,6 +17,7 @@ type WonLeadRow = {
   opportunityType: string;
   closedAt: string | null;
   createdAt: string;
+  stage: string;
 };
 
 export function isWonStage(stage: unknown) {
@@ -83,22 +84,21 @@ export async function ensureWonClientFollowUps(options: {
 
     const database = await getDatabase();
     const sql = options.salesRecordId
-      ? `SELECT id, lead_name AS leadName, opportunity_type AS opportunityType, closed_at AS closedAt, created_at AS createdAt
+      ? `SELECT id, lead_name AS leadName, opportunity_type AS opportunityType, closed_at AS closedAt, created_at AS createdAt, stage
          FROM sales_records
-         WHERE id = ? AND stage = ?
+         WHERE id = ?
            AND NOT EXISTS (SELECT 1 FROM client_follow_ups WHERE client_follow_ups.sales_record_id = sales_records.id)`
-      : `SELECT id, lead_name AS leadName, opportunity_type AS opportunityType, closed_at AS closedAt, created_at AS createdAt
+      : `SELECT id, lead_name AS leadName, opportunity_type AS opportunityType, closed_at AS closedAt, created_at AS createdAt, stage
          FROM sales_records
-         WHERE stage = ?
-           AND NOT EXISTS (SELECT 1 FROM client_follow_ups WHERE client_follow_ups.sales_record_id = sales_records.id)`;
+         WHERE NOT EXISTS (SELECT 1 FROM client_follow_ups WHERE client_follow_ups.sales_record_id = sales_records.id)`;
     const query = options.salesRecordId
-      ? database.prepare(sql).bind(options.salesRecordId, WON_STAGE)
-      : database.prepare(sql).bind(WON_STAGE);
-    const missing = await query.all<WonLeadRow>();
-    if (!missing.results.length) return { created: 0 };
+      ? database.prepare(sql).bind(options.salesRecordId)
+      : database.prepare(sql);
+    const missing = ((await query.all<WonLeadRow>()).results ?? []).filter((record) => isWonStage(record.stage));
+    if (!missing.length) return { created: 0 };
 
     const now = new Date().toISOString();
-    const statements = missing.results.map((record) => {
+    const statements = missing.map((record) => {
       const input = careInputFromWonLead(record, lists);
       return database.prepare(
         `INSERT OR IGNORE INTO client_follow_ups (
@@ -118,21 +118,20 @@ export async function ensureWonClientFollowUps(options: {
       created += batch.reduce((total, result) => total + (result.meta.changes ?? 0), 0);
     }
     if (created && options.actor) {
-      const names = missing.results.slice(0, 3).map((record) => record.leadName).join(", ");
-      const more = missing.results.length > 3 ? ` and ${missing.results.length - 3} more` : "";
+      const names = missing.slice(0, 3).map((record) => record.leadName).join(", ");
+      const more = missing.length > 3 ? ` and ${missing.length - 3} more` : "";
       await recordAuditEvent({
         actor: options.actor,
         actionType: "create",
         entityType: "client_follow_up",
         entityId: options.salesRecordId ?? null,
         summary: created === 1
-          ? `${actorLabel(options.actor)} added client-care record ${missing.results[0].leadName} for a Won lead`
+          ? `${actorLabel(options.actor)} added client-care record ${missing[0].leadName} for a Won lead`
           : `${actorLabel(options.actor)} added ${created} client-care records for Won leads (${names}${more})`,
       });
     }
     return { created };
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("no such table")) return { created: 0 };
-    throw error;
+  } catch {
+    return { created: 0 };
   }
 }

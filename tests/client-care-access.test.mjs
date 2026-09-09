@@ -53,6 +53,11 @@ test("GET /api/client-follow-ups allows every signed-in dashboard role", async (
 
   assert.match(getFollowUps, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(getFollowUps, /ensureWonClientFollowUps\(\{ actor: user \}\)/);
+  assert.match(getFollowUps, /Backfill is best-effort/);
+  assert.ok(
+    getFollowUps.indexOf("ensureWonClientFollowUps") < getFollowUps.indexOf("listClientFollowUps"),
+    "GET must backfill before listing so new Won rows appear, and still list if backfill throws"
+  );
   assert.match(postFollowUps, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(getDeals, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(team, /requireRole\(request, \["admin", "contributor"\]\)/);
@@ -78,6 +83,7 @@ test("listClientFollowUps qualifies next_follow_up_at so the sales_records join 
 
   assert.match(utils, /export async function listClientFollowUps/);
   assert.doesNotMatch(handlerSource(utils, "listClientFollowUps", "findClientFollowUpBySalesRecordId"), /WHERE /);
+  assert.match(handlerSource(utils, "listClientFollowUps", "findClientFollowUpBySalesRecordId"), /result\.results \?\? \[\]/);
   assert.doesNotMatch(followUpListOrder, /(?<!client_follow_ups\.)next_follow_up_at/);
   assert.match(followUpListOrder, /client_follow_ups\.next_follow_up_at IS NULL/);
   assert.match(followUpListOrder, /client_follow_ups\.next_follow_up_at ASC/);

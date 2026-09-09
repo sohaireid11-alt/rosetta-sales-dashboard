@@ -108,7 +108,7 @@ export async function listClientFollowUps() {
   const result = await database.prepare(
     `SELECT ${selectColumns} ${followUpJoin} ${followUpListOrder}`
   ).all<ClientFollowUp>();
-  return result.results;
+  return result.results ?? [];
 }
 
 export async function findClientFollowUpBySalesRecordId(salesRecordId: number, exceptId?: number) {
