@@ -12,7 +12,7 @@ import { ensureWonClientFollowUps } from "./won-client-care";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin", "contributor"]);
     await ensureWonClientFollowUps({ actor: user });
     return Response.json({ followUps: await listClientFollowUps() });
   } catch (error) {
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin", "contributor"]);
     const followUp = await createClientFollowUp(await readClientFollowUpInput(await request.json()));
     if (followUp) {
       await recordAuditEvent({

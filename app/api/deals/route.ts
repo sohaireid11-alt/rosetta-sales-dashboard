@@ -6,7 +6,7 @@ import { ensureWonClientFollowUps } from "../client-follow-ups/won-client-care";
 
 export async function GET(request: Request) {
   try {
-    await requireRole(request, ["admin"]);
+    await requireRole(request, ["admin", "contributor"]);
     return Response.json({ records: await listRecords() });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;
