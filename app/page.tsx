@@ -22,6 +22,7 @@ import {
 import {
   defaultFieldSettings,
   firstActiveValue,
+  interpolateLabel,
   labelFor,
   visibleOptions,
   type FieldSettings,
@@ -117,7 +118,7 @@ function today() {
 }
 
 function emptyRecordForm(settings: FieldSettings = defaultFieldSettings()): RecordForm {
-  return emptySalesValues(settings, { createdAt: today(), requestReceivedBy: "Admin" });
+  return emptySalesValues(settings, { createdAt: today(), requestReceivedBy: settings.labels.requestReceivedFallback });
 }
 
 function emptyClientFollowUpForm(settings: FieldSettings = defaultFieldSettings()): ClientFollowUpForm {
@@ -263,7 +264,7 @@ function csvRecords(content: string, settings: FieldSettings = defaultFieldSetti
       ...imported,
       leadName: cell(row, indexes.leadName), company: cell(row, indexes.company),
       organizationType: cell(row, indexes.organizationType) || imported.organizationType, sourceType: parseStoredValues(cell(row, indexes.sourceType)).length > 1 ? parseStoredValues(cell(row, indexes.sourceType)) : legacySource(cell(row, indexes.sourceType), sourceValues),
-      referredBy: cell(row, indexes.referredBy), requestReceivedBy: cell(row, indexes.requestReceivedBy) || "Admin", service,
+      referredBy: cell(row, indexes.referredBy), requestReceivedBy: cell(row, indexes.requestReceivedBy) || settings.labels.requestReceivedFallback, service,
       serviceDelivery: cell(row, indexes.serviceDelivery) || (includesChoice(service, SCHEDULED_INTERPRETATION_SERVICE) ? firstActiveValue(lists.interpretationDeliveries, "In-person") : ""),
       interpretationMode: cell(row, indexes.interpretationMode) || (includesChoice(service, SCHEDULED_INTERPRETATION_SERVICE) ? firstActiveValue(lists.interpretationModes, "Consecutive") : ""),
       opportunityType: cell(row, indexes.opportunityType) || imported.opportunityType, stage: legacyStatus(cell(row, indexes.stage), statusValues),
@@ -447,18 +448,18 @@ export default function Home() {
       const response = await fetch(url, { method: editingRecord ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadFromSalesValues(form)) });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to save the sales record.");
-      setIsFormOpen(false); setNotice(editingRecord ? "Sales record updated." : "Sales record added."); await loadWorkspace();
+      setIsFormOpen(false); setNotice(editingRecord ? fieldSettings.labels.noticeSalesRecordUpdated : fieldSettings.labels.noticeSalesRecordAdded); await loadWorkspace();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to save the sales record."); }
     finally { setIsSaving(false); }
   }
 
   async function deleteRecord(record: SalesRecord) {
-    if (!window.confirm(`Remove ${record.leadName}'s sales record?`)) return;
+    if (!window.confirm(interpolateLabel(fieldSettings.labels.confirmRemoveSalesRecord, { name: record.leadName }))) return;
     setError("");
     try {
       const response = await fetch(`/api/deals/${record.id}`, { method: "DELETE" });
       if (!response.ok) { const payload = await response.json() as { error?: string }; throw new Error(payload.error ?? "Unable to remove sales record."); }
-      setNotice("Sales record removed."); await loadWorkspace();
+      setNotice(fieldSettings.labels.noticeSalesRecordRemoved); await loadWorkspace();
     } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "Unable to remove sales record."); }
   }
 
@@ -467,13 +468,13 @@ export default function Home() {
     if (!mergeRecord || !duplicateRecordId) return;
     const duplicate = records.find((record) => record.id === Number(duplicateRecordId));
     if (!duplicate) { setError("Choose a duplicate sales record to merge."); return; }
-    if (!window.confirm(`Merge ${duplicate.leadName} into ${mergeRecord.leadName}? The duplicate entry will be removed.`)) return;
+    if (!window.confirm(interpolateLabel(fieldSettings.labels.confirmMergeRecords, { duplicate: duplicate.leadName, name: mergeRecord.leadName }))) return;
     setIsMerging(true); setError("");
     try {
       const response = await fetch(`/api/deals/${mergeRecord.id}/merge`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ duplicateRecordId: duplicate.id }) });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to merge the sales records.");
-      setMergeRecord(null); setDuplicateRecordId(""); setNotice(`${duplicate.leadName} merged into ${mergeRecord.leadName}.`); await loadWorkspace();
+      setMergeRecord(null); setDuplicateRecordId(""); setNotice(interpolateLabel(fieldSettings.labels.noticeRecordsMerged, { duplicate: duplicate.leadName, name: mergeRecord.leadName })); await loadWorkspace();
     } catch (mergeError) { setError(mergeError instanceof Error ? mergeError.message : "Unable to merge the sales records."); }
     finally { setIsMerging(false); }
   }
@@ -485,14 +486,14 @@ export default function Home() {
       const response = await fetch(`/api/deals/${activityRecord.id}/activities`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activityType, content: activityText }) });
       const payload = await response.json() as { activity?: SalesActivity; error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to add the activity.");
-      setActivities((current) => payload.activity ? [payload.activity, ...current] : current); setActivityText(""); setNotice("Activity added.");
+      setActivities((current) => payload.activity ? [payload.activity, ...current] : current); setActivityText(""); setNotice(fieldSettings.labels.noticeActivityAdded);
     } catch (activityError) { setError(activityError instanceof Error ? activityError.message : "Unable to add the activity."); }
     finally { setIsAddingActivity(false); }
   }
 
   async function importCsv(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
-    if (file.size > 2_000_000) { setError("Choose a CSV smaller than 2 MB."); return; }
+    if (file.size > 2_000_000) { setError(fieldSettings.labels.errorCsvTooLarge); return; }
     setIsImporting(true); setError("");
     try {
       const importedRows = csvRecords(await file.text(), fieldSettings);
@@ -503,10 +504,10 @@ export default function Home() {
       const notesAdded = payload.notesAdded ?? 0;
       const existing = payload.existing ?? 0;
       const message = imported
-        ? `${imported} sales records imported${notesAdded ? ` and ${notesAdded} activity notes added` : ""}.`
+        ? interpolateLabel(notesAdded ? fieldSettings.labels.noticeCsvImportRecordsAndNotes : fieldSettings.labels.noticeCsvImportRecords, { imported, notes: notesAdded })
         : notesAdded
-          ? `${notesAdded} activity notes added to ${existing} existing sales records.`
-          : "No new sales records or activity notes were found in this CSV.";
+          ? interpolateLabel(fieldSettings.labels.noticeCsvImportNotesOnly, { notes: notesAdded, existing })
+          : fieldSettings.labels.noticeCsvImportEmpty;
       setNotice(message); await loadWorkspace();
     } catch (importError) { setError(importError instanceof Error ? importError.message : "Unable to import the CSV."); }
     finally { setIsImporting(false); }
@@ -519,7 +520,7 @@ export default function Home() {
       if (!response.ok) { const payload = await response.json() as { error?: string }; throw new Error(payload.error ?? "Unable to export the CSV."); }
       const url = URL.createObjectURL(await response.blob()); const download = document.createElement("a");
       download.href = url; download.download = "rosetta-sales-records.csv"; document.body.appendChild(download); download.click(); download.remove(); URL.revokeObjectURL(url);
-      setNotice("CSV export is ready.");
+      setNotice(fieldSettings.labels.noticeCsvReady);
     } catch (exportError) { setError(exportError instanceof Error ? exportError.message : "Unable to export the CSV."); }
     finally { setIsExporting(false); }
   }
@@ -552,7 +553,7 @@ export default function Home() {
       const payload = await response.json() as { error?: string; followUp?: unknown };
       if (!response.ok) throw new Error(payload.error ?? "Unable to save the client follow-up.");
       setIsClientFormOpen(false);
-      setNotice(payload.followUp == null ? "Lead status updated. This client left Client Care because the lead is no longer Won." : editingClientFollowUp ? "Client follow-up updated." : "Client follow-up added.");
+      setNotice(payload.followUp == null ? fieldSettings.labels.noticeLeadStatusLeftCare : editingClientFollowUp ? fieldSettings.labels.noticeClientFollowUpUpdated : fieldSettings.labels.noticeClientFollowUpAdded);
       await loadWorkspace();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to save the client follow-up."); }
     finally { setIsSaving(false); }
@@ -579,16 +580,16 @@ export default function Home() {
       });
       const payload = await response.json() as { error?: string; followUp?: unknown };
       if (!response.ok) throw new Error(payload.error ?? "Unable to update status.");
-      setNotice(payload.followUp == null ? "Lead status updated. This client left Client Care because the lead is no longer Won." : "Lead status updated.");
+      setNotice(payload.followUp == null ? fieldSettings.labels.noticeLeadStatusLeftCare : fieldSettings.labels.noticeLeadStatusUpdated);
       await loadWorkspace();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to update status."); }
   }
   async function deleteClientFollowUp(item: ClientFollowUp) {
-    if (!window.confirm(`Remove the client-care record for ${item.clientName}?`)) return;
+    if (!window.confirm(interpolateLabel(fieldSettings.labels.confirmRemoveClientFollowUp, { name: item.clientName }))) return;
     try {
       const response = await fetch(`/api/client-follow-ups/${item.id}`, { method: "DELETE" });
       if (!response.ok) { const payload = await response.json() as { error?: string }; throw new Error(payload.error ?? "Unable to remove client follow-up."); }
-      setNotice("Client follow-up removed."); await loadWorkspace();
+      setNotice(fieldSettings.labels.noticeClientFollowUpRemoved); await loadWorkspace();
     } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "Unable to remove client follow-up."); }
   }
 
@@ -614,22 +615,22 @@ export default function Home() {
 
   return <main className="app-shell">
     <header className="topbar"><div className="brand-lockup"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" /><span className="brand-divider" aria-hidden="true" /><span className="product-name">{labels.productName}</span></div><div className="topbar-actions">{access.configured ? <SettingsMenu labels={labels} role={access.user.role} /> : null}</div></header>
-    {mergeRecord ? <div className="modal-backdrop" role="presentation"><form className="record-modal merge-modal" onSubmit={mergeDuplicateRecord}><div className="modal-heading"><div><p className="eyebrow">Duplicate records</p><h2>{labels.mergeHeading}</h2></div><button type="button" className="icon-button" aria-label="Close merge duplicate form" onClick={() => setMergeRecord(null)}>x</button></div><p className="heading-copy"><strong>{mergeRecord.leadName}</strong> {labels.mergeCopy}</p><label className="merge-select">{labels.mergeDuplicateLabel}<select required value={duplicateRecordId} onChange={(event) => setDuplicateRecordId(event.target.value)}><option value="">{labels.mergeSelectPlaceholder}</option>{records.filter((record) => record.id !== mergeRecord.id).map((record) => <option key={record.id} value={record.id}>{record.leadName}{record.company ? ` - ${record.company}` : ""}</option>)}</select></label><p className="table-note">{labels.mergeNote}</p>{error ? <p className="form-error" role="alert">{error}</p> : null}<div className="modal-actions"><button type="button" className="secondary-action" onClick={() => setMergeRecord(null)} disabled={isMerging}>{labels.formCancel}</button><button type="submit" className="primary-action" disabled={isMerging || !duplicateRecordId}>{isMerging ? labels.mergeMerging : labels.mergeAction}</button></div></form></div> : null}
+    {mergeRecord ? <div className="modal-backdrop" role="presentation"><form className="record-modal merge-modal" onSubmit={mergeDuplicateRecord}><div className="modal-heading"><div><p className="eyebrow">{labels.mergeEyebrow}</p><h2>{labels.mergeHeading}</h2></div><button type="button" className="icon-button" aria-label={labels.closeMergeAria} onClick={() => setMergeRecord(null)}>x</button></div><p className="heading-copy"><strong>{mergeRecord.leadName}</strong> {labels.mergeCopy}</p><label className="merge-select">{labels.mergeDuplicateLabel}<select required value={duplicateRecordId} onChange={(event) => setDuplicateRecordId(event.target.value)}><option value="">{labels.mergeSelectPlaceholder}</option>{records.filter((record) => record.id !== mergeRecord.id).map((record) => <option key={record.id} value={record.id}>{record.leadName}{record.company ? ` - ${record.company}` : ""}</option>)}</select></label><p className="table-note">{labels.mergeNote}</p>{error ? <p className="form-error" role="alert">{error}</p> : null}<div className="modal-actions"><button type="button" className="secondary-action" onClick={() => setMergeRecord(null)} disabled={isMerging}>{labels.formCancel}</button><button type="submit" className="primary-action" disabled={isMerging || !duplicateRecordId}>{isMerging ? labels.mergeMerging : labels.mergeAction}</button></div></form></div> : null}
     <div className="workspace">
-      <nav className="section-tabs" aria-label="Dashboard sections"><button type="button" className={activeView === "overview" ? "tab is-active" : "tab"} onClick={() => setActiveView("overview")}>{labels.tabOverview}</button><button type="button" className={activeView === "records" ? "tab is-active" : "tab"} onClick={() => setActiveView("records")}>{labels.tabSalesRecords} <span className="tab-count">{records.length}</span></button><button type="button" className={activeView === "client-care" ? "tab is-active" : "tab"} onClick={() => setActiveView("client-care")}>{labels.tabClientCare} <span className="tab-count">{clientFollowUps.length}</span></button></nav>
+      <nav className="section-tabs" aria-label={labels.dashboardSectionsAria}><button type="button" className={activeView === "overview" ? "tab is-active" : "tab"} onClick={() => setActiveView("overview")}>{labels.tabOverview}</button><button type="button" className={activeView === "records" ? "tab is-active" : "tab"} onClick={() => setActiveView("records")}>{labels.tabSalesRecords} <span className="tab-count">{records.length}</span></button><button type="button" className={activeView === "client-care" ? "tab is-active" : "tab"} onClick={() => setActiveView("client-care")}>{labels.tabClientCare} <span className="tab-count">{clientFollowUps.length}</span></button></nav>
       <section className="page-heading"><div><p className="eyebrow">{labels.eyebrowRosetta}</p><h1>{pageTitle}</h1><p className="heading-copy">{pageDescription}</p></div><button type="button" className="primary-action" onClick={activeView === "client-care" ? openNewClientFollowUp : openNewRecord}><span aria-hidden="true">+</span>{activeView === "client-care" ? labels.ctaAddClientFollowUp : labels.ctaAddSalesRecord}</button></section>
       {notice ? <div className="notice" role="status">{notice}</div> : null}
       {error && !isFormOpen && !isClientFormOpen && !activityRecord && !mergeRecord ? <div className="notice is-error" role="alert">{error}</div> : null}
       {isLoading ? <p className="loading-copy">{labels.loadingWorkspace}</p> : null}
       {!isLoading && activeView === "overview" ? <>
-        <section className="filter-bar" aria-label="Performance filters"><label><span>{labels.filterRequestReceivedBy}</span><select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}><option value={ALL_OWNERS}>{labels.filterRequestReceivedBy}</option>{owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}</select></label><label><span>{labels.filterPeriod}</span><select value={timeFilter} onChange={(event) => setTimeFilter(event.target.value as TimeFilter)}><option value="all">{labels.periodAllTime}</option><option value="last90">{labels.periodLast90Days}</option><option value="quarter">{labels.periodThisQuarter}</option></select></label><p className="record-count">{visibleRecords.length} {visibleRecords.length === 1 ? "record" : "records"} {labels.recordsShownSuffix}</p></section>
-        <section className="metrics-grid" aria-label="Sales metrics"><article className="metric-card metric-revenue"><span>{labels.metricBookedRevenue}</span><strong>{shortMoney(performance.bookedRevenue)}</strong><small>{performance.won.length} {labels.metricBookedRevenueHint}</small></article><article className="metric-card metric-pipeline"><span>{labels.metricOpenPipeline}</span><strong>{shortMoney(performance.pipelineRevenue)}</strong><small>{performance.active.length} {labels.metricOpenPipelineHint}</small></article><article className="metric-card metric-action"><span>{labels.metricFollowUpsDue}</span><strong>{followUpQueue.length}</strong><small>{labels.metricFollowUpsDueHint}</small></article><article className="metric-card metric-care"><span>{labels.metricClientCare}</span><strong>{careNeedingAttention}</strong><small>{labels.metricClientCareHint}</small></article></section>
+        <section className="filter-bar" aria-label={labels.performanceFiltersAria}><label><span>{labels.filterRequestReceivedBy}</span><select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}><option value={ALL_OWNERS}>{labels.filterAllOwners}</option>{owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}</select></label><label><span>{labels.filterPeriod}</span><select value={timeFilter} onChange={(event) => setTimeFilter(event.target.value as TimeFilter)}><option value="all">{labels.periodAllTime}</option><option value="last90">{labels.periodLast90Days}</option><option value="quarter">{labels.periodThisQuarter}</option></select></label><p className="record-count">{visibleRecords.length} {visibleRecords.length === 1 ? labels.recordsSingular : labels.recordsPlural} {labels.recordsShownSuffix}</p></section>
+        <section className="metrics-grid" aria-label={labels.salesMetricsAria}><article className="metric-card metric-revenue"><span>{labels.metricBookedRevenue}</span><strong>{shortMoney(performance.bookedRevenue)}</strong><small>{performance.won.length} {labels.metricBookedRevenueHint}</small></article><article className="metric-card metric-pipeline"><span>{labels.metricOpenPipeline}</span><strong>{shortMoney(performance.pipelineRevenue)}</strong><small>{performance.active.length} {labels.metricOpenPipelineHint}</small></article><article className="metric-card metric-action"><span>{labels.metricFollowUpsDue}</span><strong>{followUpQueue.length}</strong><small>{labels.metricFollowUpsDueHint}</small></article><article className="metric-card metric-care"><span>{labels.metricClientCare}</span><strong>{careNeedingAttention}</strong><small>{labels.metricClientCareHint}</small></article></section>
         <section className="worklist-section"><div className="panel-heading"><div><p className="eyebrow">{labels.queueEyebrow}</p><h2>{labels.queueHeading}</h2></div><button type="button" className="text-action" onClick={() => { setActiveView("records"); setRecordFilter("overdue"); }}>{labels.queueReviewLeads}</button></div>{followUpQueue.length ? <div className="queue-list">{followUpQueue.slice(0, 6).map((record) => <button type="button" className="queue-item" key={record.id} onClick={isAdmin ? () => openEditRecord(record) : undefined}><span className={`due-indicator due-${followUpState(record.nextFollowUpAt)}`} /><span><strong>{record.leadName}</strong><small>{choiceLabel(lists.followUpActions, record.nextAction, labels.queueActionUndefined)}</small></span><span className="queue-date">{dateLabel(record.nextFollowUpAt, labels.notScheduled)}<small>{followUpLabel(record, labels)}</small></span></button>)}</div> : <p className="empty-copy">{labels.queueEmpty}</p>}</section>
         <section className="performance-layout"><article className="service-circle-panel"><div className="panel-heading"><div><p className="eyebrow">{labels.circleEyebrow}</p><h2>{labels.circleHeading}</h2></div><span className="panel-value">{shortMoney(performance.bookedRevenue)}</span></div><div className="circle-content"><div className="donut" style={donutStyle} aria-label={labels.circleHeading}><div className="donut-core"><strong>{performance.serviceRows.length}</strong><span>{labels.donutServices}</span></div></div><div className="service-legend">{performance.serviceRows.length ? performance.serviceRows.map((row, index) => <div className="legend-row" key={row.service}><span className="legend-swatch" style={{ background: chartColors[index % chartColors.length] }} /><span>{choiceLabel(lists.services, row.service.split(" · "))}</span><strong>{money(row.revenue)}</strong></div>) : <p className="empty-copy">{labels.circleEmpty}</p>}</div></div></article><article className="source-panel"><div className="panel-heading"><div><p className="eyebrow">{labels.careEyebrow}</p><h2>{labels.careHeading}</h2></div></div><div className="care-summary"><strong>{clientFollowUps.length}</strong><span>{labels.careActiveSuffix}</span></div><div className="care-status-list">{lists.satisfactionStatuses.map((status) => <div className="care-status-row" key={status.value}><span>{status.label}</span><strong>{clientFollowUps.filter((item) => includesChoice(item.satisfactionStatus, status.value)).length}</strong></div>)}</div><button type="button" className="secondary-action full-width-action" onClick={() => setActiveView("client-care")}>{labels.careOpenButton}</button></article></section>
         <section className="pivot-section"><div className="pivot-heading"><p className="eyebrow">{labels.pivotEyebrow}</p><h2>{labels.pivotHeading}</h2><p className="table-note">{labels.pivotNote}</p></div><div className="table-wrap"><table><thead><tr><th>{labels.pivotColService}</th><th>{labels.pivotColLeads}</th><th>{labels.pivotColWon}</th><th>{labels.pivotColWinRate}</th><th>{labels.pivotColPipeline}</th><th>{labels.pivotColRevenue}</th></tr></thead><tbody>{performance.serviceRows.map((row) => <tr key={row.service}><td><strong>{choiceLabel(lists.services, row.service.split(" · "))}</strong></td><td>{row.leads}</td><td>{row.won}</td><td>{row.winRate}%</td><td>{money(row.pipeline)}</td><td className="revenue-cell">{money(row.revenue)}</td></tr>)}</tbody></table>{!performance.serviceRows.length ? <p className="empty-table">{labels.pivotEmpty}</p> : null}</div></section>
       </> : null}
       {!isLoading && activeView === "records" ? <>
-        {isAdmin ? <section className="records-toolbar"><p>{labels.importToolbarCopy}</p><div className="records-actions"><input ref={importInputRef} className="file-input" type="file" accept=".csv,text/csv" onChange={importCsv} /><button type="button" className="secondary-action" onClick={() => importInputRef.current?.click()} disabled={isImporting}>{isImporting ? "Importing..." : labels.importCsv}</button><button type="button" className="secondary-action" onClick={exportCsv} disabled={isExporting}>{isExporting ? "Exporting..." : labels.exportCsv}</button></div></section> : null}
+        {isAdmin ? <section className="records-toolbar"><p>{labels.importToolbarCopy}</p><div className="records-actions"><input ref={importInputRef} className="file-input" type="file" accept=".csv,text/csv" onChange={importCsv} /><button type="button" className="secondary-action" onClick={() => importInputRef.current?.click()} disabled={isImporting}>{isImporting ? labels.importingCsv : labels.importCsv}</button><button type="button" className="secondary-action" onClick={exportCsv} disabled={isExporting}>{isExporting ? labels.exportingCsv : labels.exportCsv}</button></div></section> : null}
         <section className="filter-bar records-list-controls">
           <label>
             <span>{labels.recordsSortLabel}</span>
@@ -647,7 +648,7 @@ export default function Home() {
             <span id="records-filters-label" className="records-filters-title">{labels.recordsFiltersLabel}</span>
             <label htmlFor="lead-search">
               <span>{labels.recordsFilterName}</span>
-              <input id="lead-search" type="search" value={recordSearch} onChange={(event) => setRecordSearch(event.target.value)} placeholder={labels.searchPlaceholder} />
+              <input id="lead-search" type="search" aria-label={labels.searchLeads} value={recordSearch} onChange={(event) => setRecordSearch(event.target.value)} placeholder={labels.searchPlaceholder} />
             </label>
             <label>
               <span>{labels.recordsFilterDate}</span>
@@ -674,7 +675,7 @@ export default function Home() {
             </label>
           </div>
         </section>
-        <section className="record-filter-row" aria-label="Lead worklist filters">{recordFilters.map((filter) => <button type="button" key={filter.key} className={recordFilter === filter.key ? "filter-chip is-active" : "filter-chip"} onClick={() => setRecordFilter(filter.key)}>{filter.label}</button>)}</section>
+        <section className="record-filter-row" aria-label={labels.worklistFiltersAria}>{recordFilters.map((filter) => <button type="button" key={filter.key} className={recordFilter === filter.key ? "filter-chip is-active" : "filter-chip"} onClick={() => setRecordFilter(filter.key)}>{filter.label}</button>)}</section>
         <section className="records-section records-table">
           <div className="table-wrap"><table>
             <thead><tr>
@@ -684,7 +685,7 @@ export default function Home() {
               {columnVisible(fieldSettings, "sales_records", "nextAction") ? <th>{columnLabel(fieldSettings, "sales_records", "nextAction", "Next action")}</th> : null}
               {columnVisible(fieldSettings, "sales_records", "source") ? <th>{columnLabel(fieldSettings, "sales_records", "source", "Source")}</th> : null}
               {columnVisible(fieldSettings, "sales_records", "value") ? <th>{columnLabel(fieldSettings, "sales_records", "value", "Value")}</th> : null}
-              {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <th aria-label="Actions" /> : null}
+              {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <th aria-label={labels.actionsColumnAria} /> : null}
             </tr></thead>
             <tbody>{listedRecords.map((record) => <tr key={record.id}>
               {columnVisible(fieldSettings, "sales_records", "leadContact") ? <td><strong>{record.leadName}</strong><small>{record.contactName || record.company || labels.contactNotAdded}{record.contactTitle ? ` \u00b7 ${record.contactTitle}` : ""}</small></td> : null}
@@ -693,7 +694,7 @@ export default function Home() {
               {columnVisible(fieldSettings, "sales_records", "nextAction") ? <td><span className={`follow-up-tag follow-up-${followUpState(record.nextFollowUpAt)}`}>{followUpLabel(record, labels)}</span><small>{choiceLabel(lists.followUpActions, record.nextAction, labels.actionNotSet)}{" \u00b7 "}{dateLabel(record.nextFollowUpAt, labels.notScheduled)}</small></td> : null}
               {columnVisible(fieldSettings, "sales_records", "source") ? <td>{choiceLabel(lists.sourceTypes, record.sourceType)}<small>{record.referredBy || record.requestReceivedBy}</small></td> : null}
               {columnVisible(fieldSettings, "sales_records", "value") ? <td className="revenue-cell">{money(record.estimatedRevenueCents)}<small>{choiceLabel(lists.opportunityTypes, record.opportunityType)}</small></td> : null}
-              {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => void loadActivities(record)}>Activity</button><button type="button" onClick={() => openEditRecord(record)}>Edit</button><button type="button" onClick={() => openMergeRecord(record)}>Merge</button><button type="button" className="delete-button" onClick={() => void deleteRecord(record)}>Delete</button></div></td> : null}
+              {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => void loadActivities(record)}>{labels.actionActivity}</button><button type="button" onClick={() => openEditRecord(record)}>{labels.actionEdit}</button><button type="button" onClick={() => openMergeRecord(record)}>{labels.actionMerge}</button><button type="button" className="delete-button" onClick={() => void deleteRecord(record)}>{labels.actionDelete}</button></div></td> : null}
             </tr>)}</tbody>
           </table>{!listedRecords.length ? <p className="empty-table">{labels.emptyLeads}</p> : null}</div>
         </section>
@@ -706,23 +707,23 @@ export default function Home() {
         {columnVisible(fieldSettings, "client_care", "lastCheckIn") ? <th>{columnLabel(fieldSettings, "client_care", "lastCheckIn", "Last check-in")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "nextAction") ? <th>{columnLabel(fieldSettings, "client_care", "nextAction", "Next action")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "nextFollowUp") ? <th>{columnLabel(fieldSettings, "client_care", "nextFollowUp", "Next follow-up")}</th> : null}
-        {columnVisible(fieldSettings, "client_care", "actions") ? <th aria-label="Actions" /> : null}
+        {columnVisible(fieldSettings, "client_care", "actions") ? <th aria-label={labels.actionsColumnAria} /> : null}
       </tr></thead><tbody>{clientFollowUps.map((item) => <tr key={item.id}>
         {columnVisible(fieldSettings, "client_care", "client") ? <td><strong>{item.clientName}</strong><small>{item.linkedLeadName ? `${labels.linkedToPrefix} ${item.linkedLeadName}` : labels.notLinkedLead}</small></td> : null}
         {columnVisible(fieldSettings, "client_care", "status") ? <td>{item.salesRecordId && item.status ? (
           isAdmin ? <select className="table-select" aria-label={columnLabel(fieldSettings, "client_care", "status", "Status")} value={parseStoredValues(item.status)[0] ?? item.status} onChange={(event) => void saveClientCareStatus(item, event.target.value)}>{visibleOptions(lists.statuses, item.status).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
           : <span className={stageClass(parseStoredValues(item.status)[0] ?? item.status)}>{choiceLabel(lists.statuses, item.status)}</span>
         ) : <span className="muted-copy">{labels.notLinkedLead}</span>}</td> : null}
-        {columnVisible(fieldSettings, "client_care", "relationship") ? <td>{choiceLabel(lists.relationshipTypes, item.relationshipType)}<small>Last service: {dateLabel(item.lastEngagementAt, labels.notScheduled)}</small></td> : null}
+        {columnVisible(fieldSettings, "client_care", "relationship") ? <td>{choiceLabel(lists.relationshipTypes, item.relationshipType)}<small>{labels.lastServicePrefix}: {dateLabel(item.lastEngagementAt, labels.notScheduled)}</small></td> : null}
         {columnVisible(fieldSettings, "client_care", "satisfaction") ? <td><span className={`care-status care-${(parseStoredValues(item.satisfactionStatus)[0] ?? item.satisfactionStatus).toLowerCase().replaceAll(" ", "-")}`}>{choiceLabel(lists.satisfactionStatuses, item.satisfactionStatus)}</span></td> : null}
         {columnVisible(fieldSettings, "client_care", "lastCheckIn") ? <td>{dateLabel(item.lastCheckInAt, labels.notScheduled)}</td> : null}
         {columnVisible(fieldSettings, "client_care", "nextAction") ? <td>{choiceLabel(lists.followUpActions, item.nextAction, labels.actionNotSet)}<small>{item.expansionOpportunity || labels.noExpansionNote}</small></td> : null}
         {columnVisible(fieldSettings, "client_care", "nextFollowUp") ? <td><span className={`follow-up-tag follow-up-${followUpState(item.nextFollowUpAt)}`}>{dateLabel(item.nextFollowUpAt, labels.notScheduled)}</span></td> : null}
-        {columnVisible(fieldSettings, "client_care", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => openEditClientFollowUp(item)}>Edit</button><button type="button" className="delete-button" onClick={() => void deleteClientFollowUp(item)}>Delete</button></div></td> : null}
+        {columnVisible(fieldSettings, "client_care", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => openEditClientFollowUp(item)}>{labels.actionEdit}</button><button type="button" className="delete-button" onClick={() => void deleteClientFollowUp(item)}>{labels.actionDelete}</button></div></td> : null}
       </tr>)}</tbody></table>{!clientFollowUps.length ? <p className="empty-table">{labels.emptyClients}</p> : null}</div></section> : null}
     </div>
 
-    {isFormOpen ? <div className="modal-backdrop" role="presentation"><form className="record-modal" onSubmit={saveRecord}><div className="modal-heading"><div><p className="eyebrow">{labels.formLeadWorkspace}</p><h2>{editingRecord ? labels.formUpdateSalesRecord : labels.ctaAddSalesRecord}</h2></div><button type="button" className="icon-button" aria-label="Close form" onClick={() => setIsFormOpen(false)}>×</button></div>
+    {isFormOpen ? <div className="modal-backdrop" role="presentation"><form className="record-modal" onSubmit={saveRecord}><div className="modal-heading"><div><p className="eyebrow">{labels.formLeadWorkspace}</p><h2>{editingRecord ? labels.formUpdateSalesRecord : labels.ctaAddSalesRecord}</h2></div><button type="button" className="icon-button" aria-label={labels.closeFormAria} onClick={() => setIsFormOpen(false)}>×</button></div>
       {salesSections.map((sectionKey) => {
         const sectionFields = visibleSalesFields.filter((field) => field.sectionKey === sectionKey && showSalesField(field, form, Boolean(editingRecord)));
         if (!sectionFields.length && !(sectionKey === "sales_next" && editingRecord)) return null;
@@ -737,6 +738,8 @@ export default function Home() {
               required={salesFieldRequired(field, form)}
               optionalMark={labels.optionalMark}
               selectPlaceholder={labels.selectPlaceholder}
+              hiddenOptionSuffix={labels.hiddenOptionSuffix}
+              emptyOptionsMessage={labels.emptyFieldOptions}
               onChange={(next) => setForm(applySalesFieldChange(form, field, next, fieldSettings))}
             />
           ))}
@@ -744,8 +747,8 @@ export default function Home() {
         </div></div>;
       })}
       {error ? <p className="form-error" role="alert">{error}</p> : null}<div className="modal-actions"><button type="button" className="secondary-action" onClick={() => setIsFormOpen(false)}>{labels.formCancel}</button><button type="submit" className="primary-action" disabled={isSaving}>{isSaving ? labels.formSaving : editingRecord ? labels.formSaveChanges : labels.ctaAddSalesRecord}</button></div></form></div> : null}
-    {activityRecord ? <div className="modal-backdrop" role="presentation"><section className="record-modal activity-modal"><div className="modal-heading"><div><p className="eyebrow">{labels.activityHistory}</p><h2>{activityRecord.leadName}</h2></div><button type="button" className="icon-button" aria-label="Close activity history" onClick={() => setActivityRecord(null)}>×</button></div><form className="activity-form" onSubmit={addActivity}><label>{fieldSettings.fields.find((field) => field.entity === "activity" && field.fieldKey === "activityType")?.label ?? "Activity type"}<select value={activityType} onChange={(event) => setActivityType(event.target.value)}>{lists.activityTypes.filter((option) => option.isActive || option.value === activityType).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>{fieldSettings.fields.find((field) => field.entity === "activity" && field.fieldKey === "content")?.label ?? "New note"}<textarea required rows={3} value={activityText} onChange={(event) => setActivityText(event.target.value)} placeholder={fieldSettings.fields.find((field) => field.entity === "activity" && field.fieldKey === "content")?.helpText || "What happened, what was sent, or what was agreed?"} /></label><button type="submit" className="primary-action" disabled={isAddingActivity}>{isAddingActivity ? labels.activityAdding : labels.activityAddNote}</button></form>{error ? <p className="form-error" role="alert">{error}</p> : null}<div className="activity-list">{activities.length ? activities.map((activity) => <article className="activity-item" key={activity.id}><div><span className="activity-type">{labelFor(lists.activityTypes, activity.activityType)}</span><time>{dateTimeLabel(activity.createdAt)}</time></div><p>{activity.content}</p></article>) : <p className="empty-copy">{labels.activityEmpty}</p>}</div></section></div> : null}
-    {isClientFormOpen ? <div className="modal-backdrop" role="presentation"><form className="record-modal" onSubmit={saveClientFollowUp}><div className="modal-heading"><div><p className="eyebrow">{labels.formClientCare}</p><h2>{editingClientFollowUp ? labels.formUpdateClientFollowUp : labels.ctaAddClientFollowUp}</h2></div><button type="button" className="icon-button" aria-label="Close form" onClick={() => setIsClientFormOpen(false)}>×</button></div>
+    {activityRecord ? <div className="modal-backdrop" role="presentation"><section className="record-modal activity-modal"><div className="modal-heading"><div><p className="eyebrow">{labels.activityHistory}</p><h2>{activityRecord.leadName}</h2></div><button type="button" className="icon-button" aria-label={labels.closeActivityAria} onClick={() => setActivityRecord(null)}>×</button></div><form className="activity-form" onSubmit={addActivity}><label>{fieldSettings.fields.find((field) => field.entity === "activity" && field.fieldKey === "activityType")?.label ?? "Activity type"}<select value={activityType} onChange={(event) => setActivityType(event.target.value)}>{lists.activityTypes.filter((option) => option.isActive || option.value === activityType).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>{fieldSettings.fields.find((field) => field.entity === "activity" && field.fieldKey === "content")?.label ?? "New note"}<textarea required rows={3} value={activityText} onChange={(event) => setActivityText(event.target.value)} placeholder={fieldSettings.fields.find((field) => field.entity === "activity" && field.fieldKey === "content")?.helpText || ""} /></label><button type="submit" className="primary-action" disabled={isAddingActivity}>{isAddingActivity ? labels.activityAdding : labels.activityAddNote}</button></form>{error ? <p className="form-error" role="alert">{error}</p> : null}<div className="activity-list">{activities.length ? activities.map((activity) => <article className="activity-item" key={activity.id}><div><span className="activity-type">{labelFor(lists.activityTypes, activity.activityType)}</span><time>{dateTimeLabel(activity.createdAt)}</time></div><p>{activity.content}</p></article>) : <p className="empty-copy">{labels.activityEmpty}</p>}</div></section></div> : null}
+    {isClientFormOpen ? <div className="modal-backdrop" role="presentation"><form className="record-modal" onSubmit={saveClientFollowUp}><div className="modal-heading"><div><p className="eyebrow">{labels.formClientCare}</p><h2>{editingClientFollowUp ? labels.formUpdateClientFollowUp : labels.ctaAddClientFollowUp}</h2></div><button type="button" className="icon-button" aria-label={labels.closeFormAria} onClick={() => setIsClientFormOpen(false)}>×</button></div>
       {careSections.map((sectionKey) => {
         const sectionFields = visibleCareFields.filter((field) => field.sectionKey === sectionKey);
         if (!sectionFields.length) return null;
@@ -766,6 +769,8 @@ export default function Home() {
               disabled={field.fieldKey === "status" ? !isAdmin || !clientForm.salesRecordId : undefined}
               optionalMark={labels.optionalMark}
               selectPlaceholder={field.fieldKey === "status" && !clientForm.salesRecordId ? labels.notLinkedLead : labels.selectPlaceholder}
+              hiddenOptionSuffix={labels.hiddenOptionSuffix}
+              emptyOptionsMessage={labels.emptyFieldOptions}
               onChange={(next) => setClientForm({ ...clientForm, [field.fieldKey]: next })}
             />
           ))}

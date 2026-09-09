@@ -39,6 +39,7 @@ import {
   UI_LABEL_GROUPS,
   UI_LABEL_KEYS,
   UI_LABEL_META,
+  DEFAULT_UI_LABELS,
   type FieldListKey,
 } from "../sales-config";
 import { SettingsMenu } from "../settings-menu";
@@ -561,6 +562,7 @@ export default function FieldSettingsPage() {
       <section className="settings-panel handbook-panel">
         <p className="eyebrow">How to change anything</p>
         <ol className="handbook-list">
+          <li><strong>Rename Sort, Filters, or Status:</strong> open Dashboard wording → Sales records for the control labels. Status choices themselves are Lead statuses under Dropdown options. Hide or rename the Client Care Status column under Tables.</li>
           <li><strong>Change a dropdown to multi-select:</strong> open Form fields, find the field (Service, Source type, or Action needed are common), set Input type to Multi-select, then Save field. Existing single values still load.</li>
           <li><strong>Add or remove choices:</strong> open Dropdown options, type a new choice, press Enter or Add option, then Save picklist. Remove from dropdowns hides a choice without deleting history.</li>
           <li><strong>Rename a label or button:</strong> open Dashboard wording or Team wording, edit the text, and save that group. Settings menu items live under Navigation and chrome.</li>
@@ -790,7 +792,11 @@ export default function FieldSettingsPage() {
               {UI_LABEL_KEYS.filter((key) => UI_LABEL_META[key].group === group).map((key) => (
                 <label key={key}>
                   {UI_LABEL_META[key].title}
-                  <input value={draft.labels[key]} onChange={(event) => setDraft((current) => ({ ...current, labels: { ...current.labels, [key]: event.target.value } }))} />
+                  {DEFAULT_UI_LABELS[key].length > 80 ? (
+                    <textarea rows={3} value={draft.labels[key]} onChange={(event) => setDraft((current) => ({ ...current, labels: { ...current.labels, [key]: event.target.value } }))} />
+                  ) : (
+                    <input value={draft.labels[key]} onChange={(event) => setDraft((current) => ({ ...current, labels: { ...current.labels, [key]: event.target.value } }))} />
+                  )}
                   <small>{UI_LABEL_META[key].hint}</small>
                 </label>
               ))}
@@ -1002,7 +1008,11 @@ export default function FieldSettingsPage() {
           {UI_LABEL_KEYS.filter((key) => UI_LABEL_META[key].group === "team").map((key) => (
             <label key={key}>
               {UI_LABEL_META[key].title}
-              <input value={draft.labels[key]} onChange={(event) => setDraft((current) => ({ ...current, labels: { ...current.labels, [key]: event.target.value } }))} />
+              {DEFAULT_UI_LABELS[key].length > 80 ? (
+                <textarea rows={3} value={draft.labels[key]} onChange={(event) => setDraft((current) => ({ ...current, labels: { ...current.labels, [key]: event.target.value } }))} />
+              ) : (
+                <input value={draft.labels[key]} onChange={(event) => setDraft((current) => ({ ...current, labels: { ...current.labels, [key]: event.target.value } }))} />
+              )}
               <small>{UI_LABEL_META[key].hint}</small>
             </label>
           ))}
@@ -1014,7 +1024,7 @@ export default function FieldSettingsPage() {
           <div>
             <p className="eyebrow">Coming next</p>
             <h2>Not in this release — listed so nothing is silent</h2>
-            <p className="table-note">Everything else on the dashboard that admins typically change is already here: field types, options, labels, table columns, page copy, History lookback, and report ranges.</p>
+            <p className="table-note">Everything else on the dashboard that admins typically change is already here: field types, options, labels, table columns, Sort/Filters/Status wording, page copy, History lookback, and report ranges.</p>
           </div>
         </div>
         <div className="roadmap-list">

@@ -213,7 +213,7 @@ test("auto-creates care rows for Won leads and removes them when the lead leaves
   assert.match(recordUtils, /reassignClientFollowUpsOnMerge/);
   assert.match(recordUtils, /SET sales_record_id = NULL/);
   assert.doesNotMatch(dealId, /DELETE FROM client_follow_ups WHERE sales_record_id/);
-  assert.match(home, /followUp == null \? "Lead status updated. This client left Client Care because the lead is no longer Won."/);
+  assert.match(home, /followUp == null \? fieldSettings.labels.noticeLeadStatusLeftCare/);
 
   const stale = linkedCareRowsLeavingWon([
     { id: 1, salesRecordId: 10, stage: "Lost" },

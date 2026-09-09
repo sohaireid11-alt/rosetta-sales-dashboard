@@ -44,6 +44,9 @@ test("persists field definitions, view columns, and picklists", async () => {
   assert.match(salesConfig, /navAdminControls/);
   assert.match(salesConfig, /importToolbarCopy/);
   assert.match(salesConfig, /teamHeading/);
+  assert.match(salesConfig, /recordsSortLabel/);
+  assert.match(salesConfig, /actionEdit/);
+  assert.match(salesConfig, /noticeLeadStatusUpdated/);
 });
 
 test("keeps admin-only writes and schema-driven forms", async () => {
@@ -134,6 +137,7 @@ test("hides inactive options and reads config before hardcoded defaults", async 
   assert.match(core, /function visibleOptions/);
   assert.match(core, /const active = list.filter\(\(option\) => option.isActive\)/);
   assert.match(core, /Keep at least one option in the dropdown/);
+  assert.match(core, /Labels must be 500 characters or fewer/);
   assert.match(core, /function mergeListOptions/);
   assert.match(core, /normalizeFieldDefinitionUpdate/);
   assert.match(home, /salesFields\(fieldSettings\)/);

@@ -12,7 +12,7 @@ import {
   showSalesField,
   type SalesFormValues,
 } from "./lib/form-runtime";
-import { defaultFieldSettings, type FieldSettings } from "./lib/field-settings-core";
+import { defaultFieldSettings, interpolateLabel, type FieldSettings } from "./lib/field-settings-core";
 import { SchemaField } from "./schema-field";
 import { SettingsMenu } from "./settings-menu";
 
@@ -40,22 +40,22 @@ export function ContributorForm({ displayName, email }: ContributorFormProps) {
     }).catch(() => undefined);
   }, [displayName]);
 
+  const lists = fieldSettings.lists;
+  const labels = fieldSettings.labels;
+  const addLabel = labels.ctaAddSalesRecord;
+  const visible = salesFields(fieldSettings, true);
+  const sections = ["sales_lead", "sales_contact", "sales_service", "sales_next"] as const;
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setIsSaving(true); setNotice(""); setError("");
     try {
       const response = await fetch("/api/deals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadFromSalesValues(form)) });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Unable to add the sales record.");
-      setForm(emptyForm(displayName, fieldSettings)); setNotice("Sales record added.");
+      setForm(emptyForm(displayName, fieldSettings)); setNotice(labels.noticeSalesRecordAdded);
     } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Unable to add the sales record."); }
     finally { setIsSaving(false); }
   }
-
-  const lists = fieldSettings.lists;
-  const labels = fieldSettings.labels;
-  const addLabel = labels.ctaAddSalesRecord;
-  const visible = salesFields(fieldSettings, true);
-  const sections = ["sales_lead", "sales_contact", "sales_service", "sales_next"] as const;
 
   return <main className="access-shell">
     <header className="topbar">
@@ -66,7 +66,7 @@ export function ContributorForm({ displayName, email }: ContributorFormProps) {
       <div className="access-heading">
         <p className="eyebrow">{labels.eyebrowRosetta}</p>
         <h1>{addLabel}</h1>
-        <p className="heading-copy">Signed in as {displayName} ({email})</p>
+        <p className="heading-copy">{interpolateLabel(labels.contributorSignedInAs, { name: displayName, email })}</p>
       </div>
       <form className="contributor-card" onSubmit={submit}>
         {sections.map((sectionKey) => {
@@ -81,10 +81,12 @@ export function ContributorForm({ displayName, email }: ContributorFormProps) {
                   field={field}
                   value={form[field.fieldKey] ?? (field.inputType === "multiselect" ? [] : "")}
                   options={field.listKey ? lists[field.listKey] : undefined}
-                  extraOptions={field.fieldKey === "requestReceivedBy" ? [displayName, "Admin"] : []}
+                  extraOptions={field.fieldKey === "requestReceivedBy" ? [displayName, labels.requestReceivedFallback] : []}
                   required={salesFieldRequired(field, form)}
                   optionalMark={labels.optionalMark}
                   selectPlaceholder={labels.selectPlaceholder}
+                  hiddenOptionSuffix={labels.hiddenOptionSuffix}
+                  emptyOptionsMessage={labels.emptyFieldOptions}
                   onChange={(next) => setForm(applySalesFieldChange(form, field, next, fieldSettings))}
                 />
               ))}

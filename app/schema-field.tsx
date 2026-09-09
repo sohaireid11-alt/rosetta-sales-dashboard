@@ -13,6 +13,8 @@ type SchemaFieldProps = {
   disabled?: boolean;
   optionalMark?: string;
   selectPlaceholder?: string;
+  hiddenOptionSuffix?: string;
+  emptyOptionsMessage?: string;
   onChange: (value: SchemaFieldValue) => void;
 };
 
@@ -25,6 +27,8 @@ export function SchemaField({
   disabled,
   optionalMark = "Optional",
   selectPlaceholder = "Select",
+  hiddenOptionSuffix = "(hidden from new lists)",
+  emptyOptionsMessage = "No options yet. Add them under Dropdown options.",
   onChange,
 }: SchemaFieldProps) {
   const isRequired = required ?? field.isRequired;
@@ -63,10 +67,10 @@ export function SchemaField({
                 disabled={disabled}
                 onChange={(event) => toggle(option.value, event.target.checked)}
               />
-              <span>{option.label}{option.isActive ? "" : " (hidden from new lists)"}</span>
+              <span>{option.label}{option.isActive ? "" : ` ${hiddenOptionSuffix}`}</span>
             </label>
           ))}
-          {!choices.length ? <p className="table-note">No options yet. Add them under Dropdown options.</p> : null}
+          {!choices.length ? <p className="table-note">{emptyOptionsMessage}</p> : null}
         </div>
       ) : field.inputType === "select" ? (
         <select required={isRequired} disabled={disabled} value={textValue} onChange={(event) => onChange(event.target.value)}>
