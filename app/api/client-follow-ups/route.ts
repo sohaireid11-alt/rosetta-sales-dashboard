@@ -12,8 +12,12 @@ import { ensureWonClientFollowUps } from "./won-client-care";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireRole(request, ["admin"]);
-    await ensureWonClientFollowUps({ actor: user });
+    const user = await requireRole(request, ["admin", "contributor"]);
+    try {
+      await ensureWonClientFollowUps({ actor: user });
+    } catch {
+      // Backfill is best-effort. Existing care rows must still list if it fails.
+    }
     return Response.json({ followUps: await listClientFollowUps() });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;
@@ -23,7 +27,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin", "contributor"]);
     const followUp = await createClientFollowUp(await readClientFollowUpInput(await request.json()));
     if (followUp) {
       await recordAuditEvent({

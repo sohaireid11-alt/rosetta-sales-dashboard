@@ -92,30 +92,34 @@ export async function readClientFollowUpInput(payload: unknown): Promise<ClientF
 }
 
 const selectColumns = `
-  client_follow_ups.id, sales_record_id AS salesRecordId, client_name AS clientName, relationship_type AS relationshipType,
-  last_engagement_at AS lastEngagementAt, last_check_in_at AS lastCheckInAt, satisfaction_status AS satisfactionStatus,
+  client_follow_ups.id, client_follow_ups.sales_record_id AS salesRecordId, client_follow_ups.client_name AS clientName,
+  client_follow_ups.relationship_type AS relationshipType, client_follow_ups.last_engagement_at AS lastEngagementAt,
+  client_follow_ups.last_check_in_at AS lastCheckInAt, client_follow_ups.satisfaction_status AS satisfactionStatus,
   client_follow_ups.next_follow_up_at AS nextFollowUpAt, client_follow_ups.next_action AS nextAction,
-  expansion_opportunity AS expansionOpportunity, client_follow_ups.created_at AS createdAt, client_follow_ups.updated_at AS updatedAt,
-  sales_records.lead_name AS linkedLeadName
+  client_follow_ups.expansion_opportunity AS expansionOpportunity, client_follow_ups.created_at AS createdAt,
+  client_follow_ups.updated_at AS updatedAt, sales_records.lead_name AS linkedLeadName
 `;
+
+const followUpJoin = "FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id";
+const followUpListOrder = "ORDER BY CASE WHEN client_follow_ups.next_follow_up_at IS NULL THEN 1 ELSE 0 END, client_follow_ups.next_follow_up_at ASC, client_follow_ups.id DESC";
 
 export async function listClientFollowUps() {
   const database = await getDatabase();
   const result = await database.prepare(
-    `SELECT ${selectColumns} FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id ORDER BY CASE WHEN next_follow_up_at IS NULL THEN 1 ELSE 0 END, next_follow_up_at ASC, client_follow_ups.id DESC`
+    `SELECT ${selectColumns} ${followUpJoin} ${followUpListOrder}`
   ).all<ClientFollowUp>();
-  return result.results;
+  return result.results ?? [];
 }
 
 export async function findClientFollowUpBySalesRecordId(salesRecordId: number, exceptId?: number) {
   const database = await getDatabase();
   if (exceptId) {
     return database.prepare(
-      `SELECT ${selectColumns} FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id WHERE client_follow_ups.sales_record_id = ? AND client_follow_ups.id != ? ORDER BY client_follow_ups.id ASC LIMIT 1`
+      `SELECT ${selectColumns} ${followUpJoin} WHERE client_follow_ups.sales_record_id = ? AND client_follow_ups.id != ? ORDER BY client_follow_ups.id ASC LIMIT 1`
     ).bind(salesRecordId, exceptId).first<ClientFollowUp>();
   }
   return database.prepare(
-    `SELECT ${selectColumns} FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id WHERE client_follow_ups.sales_record_id = ? ORDER BY client_follow_ups.id ASC LIMIT 1`
+    `SELECT ${selectColumns} ${followUpJoin} WHERE client_follow_ups.sales_record_id = ? ORDER BY client_follow_ups.id ASC LIMIT 1`
   ).bind(salesRecordId).first<ClientFollowUp>();
 }
 
@@ -169,7 +173,7 @@ export async function updateClientFollowUp(id: number, input: ClientFollowUpInpu
 export async function findClientFollowUp(id: number) {
   const database = await getDatabase();
   return database.prepare(
-    `SELECT ${selectColumns} FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id WHERE client_follow_ups.id = ?`
+    `SELECT ${selectColumns} ${followUpJoin} WHERE client_follow_ups.id = ?`
   ).bind(id).first<ClientFollowUp>();
 }
 

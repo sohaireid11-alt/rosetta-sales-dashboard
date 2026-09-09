@@ -3,7 +3,7 @@ import { AccessError, requireRole } from "../../lib/access";
 
 export async function GET(request: Request) {
   try {
-    await requireRole(request, ["admin"]);
+    await requireRole(request, ["admin", "contributor"]);
     const database = await getDatabase();
     const result = await database.prepare(
       "SELECT id, name, email, role FROM team_members WHERE is_active = 1 ORDER BY name COLLATE NOCASE"

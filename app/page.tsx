@@ -3,7 +3,6 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessGate } from "./access-gate";
-import { ContributorForm } from "./contributor-form";
 import { SettingsMenu } from "./settings-menu";
 import {
   applySalesFieldChange,
@@ -339,9 +338,10 @@ export default function Home() {
       ]);
       const recordsPayload = await recordsResponse.json() as { records?: SalesRecord[]; error?: string };
       const teamPayload = await teamResponse.json() as { members?: TeamMember[] };
-      const clientPayload = await clientResponse.json() as { followUps?: ClientFollowUp[] };
+      const clientPayload = await clientResponse.json() as { followUps?: ClientFollowUp[]; error?: string };
       const settingsPayload = await settingsResponse.json() as FieldSettings & { error?: string };
       if (!recordsResponse.ok) throw new Error(recordsPayload.error ?? "Unable to load sales records.");
+      if (!clientResponse.ok) throw new Error(clientPayload.error ?? "Unable to load client-care records.");
       setRecords(recordsPayload.records ?? []);
       setTeamMembers(teamPayload.members ?? []);
       setClientFollowUps(clientPayload.followUps ?? []);
@@ -361,7 +361,7 @@ export default function Home() {
   }
 
   useEffect(() => { void loadAccess(); }, []);
-  useEffect(() => { if (access?.user?.role === "admin") void loadWorkspace(); }, [access?.user?.role]);
+  useEffect(() => { if (access?.user) void loadWorkspace(); }, [access?.user?.role]);
 
   const requestReceivedOptions = useMemo(
     () => Array.from(new Set(["Admin", ...teamMembers.map((member) => member.name)])),
@@ -549,8 +549,8 @@ export default function Home() {
 
   if (!access) return <main className="access-shell"><section className="access-card"><img src="/rosetta-logo-horizontal.png" alt="Rosetta Languages" />{accessError ? <><p className="eyebrow">Sales performance</p><h1>Unable to load access</h1><p className="heading-copy">{accessError}</p><button className="primary-action access-action" type="button" onClick={() => void loadAccess()}>Try again</button></> : <p className="heading-copy">Checking access...</p>}</section></main>;
   if (!access.user || (!access.legacy && !access.configured)) return <AccessGate configured={access.configured} />;
-  if (access.user.role === "contributor") return <ContributorForm displayName={access.user.displayName} email={access.user.email} />;
 
+  const isAdmin = access.user.role === "admin";
   const labels = fieldSettings.labels;
   const lists = fieldSettings.lists;
   const pageTitle = activeView === "overview" ? labels.headingOverview : activeView === "records" ? labels.headingSalesRecords : labels.headingClientCare;
@@ -579,12 +579,12 @@ export default function Home() {
       {!isLoading && activeView === "overview" ? <>
         <section className="filter-bar" aria-label="Performance filters"><label><span>{labels.filterRequestReceivedBy}</span><select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}><option value={ALL_OWNERS}>{labels.filterRequestReceivedBy}</option>{owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}</select></label><label><span>{labels.filterPeriod}</span><select value={timeFilter} onChange={(event) => setTimeFilter(event.target.value as TimeFilter)}><option value="all">{labels.periodAllTime}</option><option value="last90">{labels.periodLast90Days}</option><option value="quarter">{labels.periodThisQuarter}</option></select></label><p className="record-count">{visibleRecords.length} {visibleRecords.length === 1 ? "record" : "records"} {labels.recordsShownSuffix}</p></section>
         <section className="metrics-grid" aria-label="Sales metrics"><article className="metric-card metric-revenue"><span>{labels.metricBookedRevenue}</span><strong>{shortMoney(performance.bookedRevenue)}</strong><small>{performance.won.length} {labels.metricBookedRevenueHint}</small></article><article className="metric-card metric-pipeline"><span>{labels.metricOpenPipeline}</span><strong>{shortMoney(performance.pipelineRevenue)}</strong><small>{performance.active.length} {labels.metricOpenPipelineHint}</small></article><article className="metric-card metric-action"><span>{labels.metricFollowUpsDue}</span><strong>{followUpQueue.length}</strong><small>{labels.metricFollowUpsDueHint}</small></article><article className="metric-card metric-care"><span>{labels.metricClientCare}</span><strong>{careNeedingAttention}</strong><small>{labels.metricClientCareHint}</small></article></section>
-        <section className="worklist-section"><div className="panel-heading"><div><p className="eyebrow">{labels.queueEyebrow}</p><h2>{labels.queueHeading}</h2></div><button type="button" className="text-action" onClick={() => { setActiveView("records"); setRecordFilter("overdue"); }}>{labels.queueReviewLeads}</button></div>{followUpQueue.length ? <div className="queue-list">{followUpQueue.slice(0, 6).map((record) => <button type="button" className="queue-item" key={record.id} onClick={() => openEditRecord(record)}><span className={`due-indicator due-${followUpState(record.nextFollowUpAt)}`} /><span><strong>{record.leadName}</strong><small>{choiceLabel(lists.followUpActions, record.nextAction, labels.queueActionUndefined)}</small></span><span className="queue-date">{dateLabel(record.nextFollowUpAt, labels.notScheduled)}<small>{followUpLabel(record, labels)}</small></span></button>)}</div> : <p className="empty-copy">{labels.queueEmpty}</p>}</section>
+        <section className="worklist-section"><div className="panel-heading"><div><p className="eyebrow">{labels.queueEyebrow}</p><h2>{labels.queueHeading}</h2></div><button type="button" className="text-action" onClick={() => { setActiveView("records"); setRecordFilter("overdue"); }}>{labels.queueReviewLeads}</button></div>{followUpQueue.length ? <div className="queue-list">{followUpQueue.slice(0, 6).map((record) => <button type="button" className="queue-item" key={record.id} onClick={isAdmin ? () => openEditRecord(record) : undefined}><span className={`due-indicator due-${followUpState(record.nextFollowUpAt)}`} /><span><strong>{record.leadName}</strong><small>{choiceLabel(lists.followUpActions, record.nextAction, labels.queueActionUndefined)}</small></span><span className="queue-date">{dateLabel(record.nextFollowUpAt, labels.notScheduled)}<small>{followUpLabel(record, labels)}</small></span></button>)}</div> : <p className="empty-copy">{labels.queueEmpty}</p>}</section>
         <section className="performance-layout"><article className="service-circle-panel"><div className="panel-heading"><div><p className="eyebrow">{labels.circleEyebrow}</p><h2>{labels.circleHeading}</h2></div><span className="panel-value">{shortMoney(performance.bookedRevenue)}</span></div><div className="circle-content"><div className="donut" style={donutStyle} aria-label={labels.circleHeading}><div className="donut-core"><strong>{performance.serviceRows.length}</strong><span>{labels.donutServices}</span></div></div><div className="service-legend">{performance.serviceRows.length ? performance.serviceRows.map((row, index) => <div className="legend-row" key={row.service}><span className="legend-swatch" style={{ background: chartColors[index % chartColors.length] }} /><span>{choiceLabel(lists.services, row.service.split(" · "))}</span><strong>{money(row.revenue)}</strong></div>) : <p className="empty-copy">{labels.circleEmpty}</p>}</div></div></article><article className="source-panel"><div className="panel-heading"><div><p className="eyebrow">{labels.careEyebrow}</p><h2>{labels.careHeading}</h2></div></div><div className="care-summary"><strong>{clientFollowUps.length}</strong><span>{labels.careActiveSuffix}</span></div><div className="care-status-list">{lists.satisfactionStatuses.map((status) => <div className="care-status-row" key={status.value}><span>{status.label}</span><strong>{clientFollowUps.filter((item) => includesChoice(item.satisfactionStatus, status.value)).length}</strong></div>)}</div><button type="button" className="secondary-action full-width-action" onClick={() => setActiveView("client-care")}>{labels.careOpenButton}</button></article></section>
         <section className="pivot-section"><div className="pivot-heading"><p className="eyebrow">{labels.pivotEyebrow}</p><h2>{labels.pivotHeading}</h2><p className="table-note">{labels.pivotNote}</p></div><div className="table-wrap"><table><thead><tr><th>{labels.pivotColService}</th><th>{labels.pivotColLeads}</th><th>{labels.pivotColWon}</th><th>{labels.pivotColWinRate}</th><th>{labels.pivotColPipeline}</th><th>{labels.pivotColRevenue}</th></tr></thead><tbody>{performance.serviceRows.map((row) => <tr key={row.service}><td><strong>{choiceLabel(lists.services, row.service.split(" · "))}</strong></td><td>{row.leads}</td><td>{row.won}</td><td>{row.winRate}%</td><td>{money(row.pipeline)}</td><td className="revenue-cell">{money(row.revenue)}</td></tr>)}</tbody></table>{!performance.serviceRows.length ? <p className="empty-table">{labels.pivotEmpty}</p> : null}</div></section>
       </> : null}
       {!isLoading && activeView === "records" ? <>
-        <section className="records-toolbar"><p>{labels.importToolbarCopy}</p><div className="records-actions"><input ref={importInputRef} className="file-input" type="file" accept=".csv,text/csv" onChange={importCsv} /><button type="button" className="secondary-action" onClick={() => importInputRef.current?.click()} disabled={isImporting}>{isImporting ? "Importing..." : labels.importCsv}</button><button type="button" className="secondary-action" onClick={exportCsv} disabled={isExporting}>{isExporting ? "Exporting..." : labels.exportCsv}</button></div></section>
+        {isAdmin ? <section className="records-toolbar"><p>{labels.importToolbarCopy}</p><div className="records-actions"><input ref={importInputRef} className="file-input" type="file" accept=".csv,text/csv" onChange={importCsv} /><button type="button" className="secondary-action" onClick={() => importInputRef.current?.click()} disabled={isImporting}>{isImporting ? "Importing..." : labels.importCsv}</button><button type="button" className="secondary-action" onClick={exportCsv} disabled={isExporting}>{isExporting ? "Exporting..." : labels.exportCsv}</button></div></section> : null}
         <div className="lead-search"><label htmlFor="lead-search">{labels.searchLeads}</label><input id="lead-search" type="search" value={recordSearch} onChange={(event) => setRecordSearch(event.target.value)} placeholder={labels.searchPlaceholder} /></div>
         <section className="record-filter-row" aria-label="Lead worklist filters">{recordFilters.map((filter) => <button type="button" key={filter.key} className={recordFilter === filter.key ? "filter-chip is-active" : "filter-chip"} onClick={() => setRecordFilter(filter.key)}>{filter.label}</button>)}</section>
         <section className="records-section records-table">
@@ -596,7 +596,7 @@ export default function Home() {
               {columnVisible(fieldSettings, "sales_records", "nextAction") ? <th>{columnLabel(fieldSettings, "sales_records", "nextAction", "Next action")}</th> : null}
               {columnVisible(fieldSettings, "sales_records", "source") ? <th>{columnLabel(fieldSettings, "sales_records", "source", "Source")}</th> : null}
               {columnVisible(fieldSettings, "sales_records", "value") ? <th>{columnLabel(fieldSettings, "sales_records", "value", "Value")}</th> : null}
-              {columnVisible(fieldSettings, "sales_records", "actions") ? <th aria-label="Actions" /> : null}
+              {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <th aria-label="Actions" /> : null}
             </tr></thead>
             <tbody>{visibleRecords.map((record) => <tr key={record.id}>
               {columnVisible(fieldSettings, "sales_records", "leadContact") ? <td><strong>{record.leadName}</strong><small>{record.contactName || record.company || labels.contactNotAdded}{record.contactTitle ? ` \u00b7 ${record.contactTitle}` : ""}</small></td> : null}
@@ -605,7 +605,7 @@ export default function Home() {
               {columnVisible(fieldSettings, "sales_records", "nextAction") ? <td><span className={`follow-up-tag follow-up-${followUpState(record.nextFollowUpAt)}`}>{followUpLabel(record, labels)}</span><small>{choiceLabel(lists.followUpActions, record.nextAction, labels.actionNotSet)}{" \u00b7 "}{dateLabel(record.nextFollowUpAt, labels.notScheduled)}</small></td> : null}
               {columnVisible(fieldSettings, "sales_records", "source") ? <td>{choiceLabel(lists.sourceTypes, record.sourceType)}<small>{record.referredBy || record.requestReceivedBy}</small></td> : null}
               {columnVisible(fieldSettings, "sales_records", "value") ? <td className="revenue-cell">{money(record.estimatedRevenueCents)}<small>{choiceLabel(lists.opportunityTypes, record.opportunityType)}</small></td> : null}
-              {columnVisible(fieldSettings, "sales_records", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => void loadActivities(record)}>Activity</button><button type="button" onClick={() => openEditRecord(record)}>Edit</button><button type="button" onClick={() => openMergeRecord(record)}>Merge</button><button type="button" className="delete-button" onClick={() => void deleteRecord(record)}>Delete</button></div></td> : null}
+              {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => void loadActivities(record)}>Activity</button><button type="button" onClick={() => openEditRecord(record)}>Edit</button><button type="button" onClick={() => openMergeRecord(record)}>Merge</button><button type="button" className="delete-button" onClick={() => void deleteRecord(record)}>Delete</button></div></td> : null}
             </tr>)}</tbody>
           </table>{!visibleRecords.length ? <p className="empty-table">{labels.emptyLeads}</p> : null}</div>
         </section>

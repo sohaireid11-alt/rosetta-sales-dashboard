@@ -114,10 +114,11 @@ test("maps Won sales records onto client-care rows without duplicating links", (
       { id: 2, stage: "Won" },
       { id: 3, stage: "Pending" },
       { id: 4, stage: "Lost" },
+      { id: 5, stage: '["Won"]' },
     ],
     [{ salesRecordId: 1 }, { salesRecordId: null }]
   );
-  assert.deepEqual(missing.map((record) => record.id), [2]);
+  assert.deepEqual(missing.map((record) => record.id), [2, 5]);
 });
 
 test("adds a unique sales-record link and backfills existing Won deals", async () => {
@@ -178,10 +179,12 @@ test("auto-creates care rows for Won leads and leaves them when stage changes", 
 
   assert.match(wonCare, /if \(!settings.includeWonLeadsInClientCare\) return \{ created: 0 \}/);
   assert.match(wonCare, /INSERT OR IGNORE INTO client_follow_ups/);
-  assert.match(wonCare, /stage = \?/);
+  assert.match(wonCare, /isWonStage\(record.stage\)/);
+  assert.doesNotMatch(wonCare, /stage = \?/);
   assert.match(wonCare, /NOT EXISTS \(SELECT 1 FROM client_follow_ups WHERE client_follow_ups.sales_record_id = sales_records.id\)/);
   assert.match(wonCare, /added client-care record/);
   assert.match(wonCare, /nextFollowUpAt: null/);
+  assert.match(wonCare, /return \{ created: 0 \}/);
   assert.doesNotMatch(wonCare, /DELETE FROM client_follow_ups/);
   assert.match(followUps, /ensureWonClientFollowUps\(\{ actor: user \}\)/);
   assert.match(followUpUtils, /This won lead already has a client-care record/);
