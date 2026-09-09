@@ -16,6 +16,7 @@ import {
 import {
   DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
   DEFAULT_HISTORY_LOOKBACK_DAYS,
+  DEFAULT_INCLUDE_WON_LEADS_IN_CLIENT_CARE,
   DEFAULT_REPORT_PRESETS,
   DEFAULT_SHOW_BACK_CONTROL,
   DEFAULT_UI_LABELS,
@@ -52,6 +53,7 @@ export type FieldSettings = {
   reportPresets: ReportPreset[];
   customReportRangeEnabled: boolean;
   showBackControl: boolean;
+  includeWonLeadsInClientCare: boolean;
 };
 export type NormalizedFieldOption = { value: string; label: string; sortOrder: number; isActive: boolean };
 
@@ -116,6 +118,7 @@ export function defaultFieldSettings(): FieldSettings {
     reportPresets: DEFAULT_REPORT_PRESETS.map((preset) => ({ ...preset })),
     customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
     showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+    includeWonLeadsInClientCare: DEFAULT_INCLUDE_WON_LEADS_IN_CLIENT_CARE,
   };
 }
 
@@ -494,15 +497,20 @@ export function normalizeBooleanFlag(value: unknown, fallback: boolean) {
   return fallback;
 }
 
-export function normalizeWorkspaceFlags(value: unknown, current?: Pick<FieldSettings, "customReportRangeEnabled" | "showBackControl">) {
+export function normalizeWorkspaceFlags(
+  value: unknown,
+  current?: Pick<FieldSettings, "customReportRangeEnabled" | "showBackControl" | "includeWonLeadsInClientCare">
+) {
   const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const fallback = current ?? {
     customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
     showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+    includeWonLeadsInClientCare: DEFAULT_INCLUDE_WON_LEADS_IN_CLIENT_CARE,
   };
   return {
     customReportRangeEnabled: normalizeBooleanFlag(source.customReportRangeEnabled, fallback.customReportRangeEnabled),
     showBackControl: normalizeBooleanFlag(source.showBackControl, fallback.showBackControl),
+    includeWonLeadsInClientCare: normalizeBooleanFlag(source.includeWonLeadsInClientCare, fallback.includeWonLeadsInClientCare),
   };
 }
 
@@ -511,6 +519,7 @@ export function parseStoredWorkspaceFlags(raw: string | null | undefined) {
     return {
       customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
       showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+      includeWonLeadsInClientCare: DEFAULT_INCLUDE_WON_LEADS_IN_CLIENT_CARE,
     };
   }
   try {
@@ -519,6 +528,7 @@ export function parseStoredWorkspaceFlags(raw: string | null | undefined) {
     return {
       customReportRangeEnabled: DEFAULT_CUSTOM_REPORT_RANGE_ENABLED,
       showBackControl: DEFAULT_SHOW_BACK_CONTROL,
+      includeWonLeadsInClientCare: DEFAULT_INCLUDE_WON_LEADS_IN_CLIENT_CARE,
     };
   }
 }

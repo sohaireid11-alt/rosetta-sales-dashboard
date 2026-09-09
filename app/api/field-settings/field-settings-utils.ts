@@ -175,9 +175,10 @@ async function seedFieldSettings() {
   if (!workspaceFlags) {
     await database.prepare(
       "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)"
-    ).bind(WORKSPACE_FLAGS_KEY, JSON.stringify({
+    ).bind(WORKSPACE_FLAGS_KEY,     JSON.stringify({
       customReportRangeEnabled: defaultFieldSettings().customReportRangeEnabled,
       showBackControl: defaultFieldSettings().showBackControl,
+      includeWonLeadsInClientCare: defaultFieldSettings().includeWonLeadsInClientCare,
     }), now).run();
   }
 
@@ -260,6 +261,7 @@ export async function getFieldSettings(includeRetired = false): Promise<FieldSet
       reportPresets: parseStoredReportPresets(storedReportPresets?.value),
       customReportRangeEnabled: workspaceFlags.customReportRangeEnabled,
       showBackControl: workspaceFlags.showBackControl,
+      includeWonLeadsInClientCare: workspaceFlags.includeWonLeadsInClientCare,
     };
   } catch (error) {
     if (isMissingTable(error)) return defaultFieldSettings();
@@ -426,6 +428,7 @@ export function publicFieldSettings(settings: FieldSettings, includeRetired: boo
     reportPresets: settings.reportPresets,
     customReportRangeEnabled: settings.customReportRangeEnabled,
     showBackControl: settings.showBackControl,
+    includeWonLeadsInClientCare: settings.includeWonLeadsInClientCare,
   };
 }
 

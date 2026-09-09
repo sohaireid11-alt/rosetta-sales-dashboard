@@ -1,5 +1,6 @@
 import { AccessError, requireRole } from "../../lib/access";
 import { FieldSettingsError } from "../../lib/field-settings-core";
+import { ensureWonClientFollowUps } from "../client-follow-ups/won-client-care";
 import {
   fieldSettingsError,
   getFieldSettings,
@@ -17,6 +18,7 @@ import {
 export async function GET(request: Request) {
   try {
     const user = await requireRole(request, ["admin", "contributor"]);
+    if (user.role === "admin") await ensureWonClientFollowUps({ actor: user });
     const settings = await getFieldSettings(user.role === "admin");
     return Response.json(publicFieldSettings(settings, user.role === "admin"));
   } catch (error) {
@@ -26,7 +28,7 @@ export async function GET(request: Request) {
 }
 
 async function saveSettings(request: Request) {
-  await requireRole(request, ["admin"]);
+  const user = await requireRole(request, ["admin"]);
   const payload = await request.json() as {
     listKey?: unknown;
     options?: unknown;
@@ -41,6 +43,7 @@ async function saveSettings(request: Request) {
     reportPresets?: unknown;
     customReportRangeEnabled?: unknown;
     showBackControl?: unknown;
+    includeWonLeadsInClientCare?: unknown;
   };
   if (payload.labels && typeof payload.labels === "object") {
     return Response.json(await replaceUiLabels(payload.labels));
@@ -54,8 +57,10 @@ async function saveSettings(request: Request) {
   if (payload.reportPresets) {
     return Response.json(await replaceReportPresets(payload.reportPresets));
   }
-  if (payload.customReportRangeEnabled !== undefined || payload.showBackControl !== undefined) {
-    return Response.json(await replaceWorkspaceFlags(payload));
+  if (payload.customReportRangeEnabled !== undefined || payload.showBackControl !== undefined || payload.includeWonLeadsInClientCare !== undefined) {
+    const settings = await replaceWorkspaceFlags(payload);
+    if (settings.includeWonLeadsInClientCare) await ensureWonClientFollowUps({ actor: user });
+    return Response.json(settings);
   }
   if (payload.viewKey && payload.columns) {
     return Response.json(await replaceViewColumns(payload.viewKey, payload.columns));

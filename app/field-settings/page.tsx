@@ -105,6 +105,7 @@ function cloneSettings(settings: FieldSettings): FieldSettings {
     reportPresets: settings.reportPresets.map((preset) => ({ ...preset })),
     customReportRangeEnabled: settings.customReportRangeEnabled,
     showBackControl: settings.showBackControl,
+    includeWonLeadsInClientCare: settings.includeWonLeadsInClientCare,
   };
 }
 
@@ -153,6 +154,7 @@ export default function FieldSettingsPage() {
       reportPresets: payload.reportPresets ?? defaultFieldSettings().reportPresets,
       customReportRangeEnabled: payload.customReportRangeEnabled ?? defaultFieldSettings().customReportRangeEnabled,
       showBackControl: payload.showBackControl ?? defaultFieldSettings().showBackControl,
+      includeWonLeadsInClientCare: payload.includeWonLeadsInClientCare ?? defaultFieldSettings().includeWonLeadsInClientCare,
     });
     setSettings(next);
     setDraft(cloneSettings(next));
@@ -189,6 +191,7 @@ export default function FieldSettingsPage() {
       reportPresets: payload.reportPresets ?? defaultFieldSettings().reportPresets,
       customReportRangeEnabled: payload.customReportRangeEnabled ?? defaultFieldSettings().customReportRangeEnabled,
       showBackControl: payload.showBackControl ?? defaultFieldSettings().showBackControl,
+      includeWonLeadsInClientCare: payload.includeWonLeadsInClientCare ?? defaultFieldSettings().includeWonLeadsInClientCare,
     });
     setSettings(next);
     setDraft(cloneSettings(next));
@@ -400,7 +403,8 @@ export default function FieldSettingsPage() {
       await put({
         customReportRangeEnabled: draft.customReportRangeEnabled,
         showBackControl: draft.showBackControl,
-      }, "Page controls updated. Reports and the Back button use these settings immediately.");
+        includeWonLeadsInClientCare: draft.includeWonLeadsInClientCare,
+      }, "Page controls updated. Reports, the Back button, and Client care use these settings immediately.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Unable to save page controls.");
     } finally {
@@ -550,7 +554,7 @@ export default function FieldSettingsPage() {
         <div>
           <p className="eyebrow">Admin Control Center</p>
           <h1>Change the dashboard yourself</h1>
-          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, report ranges, the custom date range, the Back button, and Google Calendar sync. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
+          <p className="heading-copy">Admins own labels, field types, required rules, visibility, dropdown options, History lookback, report ranges, the custom date range, the Back button, Client care Won-lead behavior, and Google Calendar sync. After you save, the next form or page load uses your settings — no coding, GitHub, or Cloudflare dashboard needed.</p>
         </div>
       </div>
 
@@ -561,7 +565,7 @@ export default function FieldSettingsPage() {
           <li><strong>Add or remove choices:</strong> open Dropdown options, type a new choice, press Enter or Add option, then Save picklist. Remove from dropdowns hides a choice without deleting history.</li>
           <li><strong>Rename a label or button:</strong> open Dashboard wording or Team wording, edit the text, and save that group. Settings menu items live under Navigation and chrome.</li>
           <li><strong>Hide a field or table column:</strong> turn Show on forms off (Form fields) or uncheck a column (Tables), then save.</li>
-          <li><strong>Change History or Reports without a developer:</strong> open History & reports to set lookback days, CSV ranges, custom date-range visibility, and the Back control. New features ship with admin-editable config on this page.</li>
+          <li><strong>Change History, Reports, or Client care without a developer:</strong> open History & reports to set lookback days, CSV ranges, custom date-range visibility, the Back control, and whether Won leads appear on Client care. New features ship with admin-editable config on this page.</li>
           <li><strong>Sync follow-ups to Google Calendar:</strong> open Calendar, connect Danyal's Google account, edit the event title and description templates, then turn sync on. Saving a lead still works if Google is disconnected.</li>
         </ol>
       </section>
@@ -774,7 +778,7 @@ export default function FieldSettingsPage() {
           <div>
             <p className="eyebrow">Dashboard wording</p>
             <h2>Tabs, metrics, empty states, and buttons</h2>
-            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, Calendar, and shared chrome including the Settings menu and Back button. Field labels are under Form fields. History lookback days, report ranges, custom date-range visibility, and Back visibility are under History & reports. Google connection, enable, calendar id, and templates are under Calendar.</p>
+            <p className="table-note">These strings appear on Overview, Sales records, Client care, History, Reports, Calendar, and shared chrome including the Settings menu and Back button. Field labels are under Form fields. History lookback days, report ranges, custom date-range visibility, Back visibility, and the Won-leads Client care toggle are under History & reports. Google connection, enable, calendar id, and templates are under Calendar.</p>
           </div>
           <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "copy" ? "Saving..." : "Save dashboard wording"}</button>
         </div>
@@ -858,8 +862,8 @@ export default function FieldSettingsPage() {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Page controls</p>
-              <h2>Custom date range and Back button</h2>
-              <p className="table-note">Turn the Reports calendar range and the shared Back control on or off. Labels for those controls are under Dashboard wording. Default is on for both.</p>
+              <h2>Custom date range, Back button, and Client care</h2>
+              <p className="table-note">Turn the Reports calendar range, the shared Back control, and Won-lead Client care on or off. Labels for those controls are under Dashboard wording. Default is on for all three.</p>
             </div>
             <button className="primary-action" type="submit" disabled={savingKey !== null}>{savingKey === "workspaceFlags" ? "Saving..." : "Save page controls"}</button>
           </div>
@@ -880,7 +884,16 @@ export default function FieldSettingsPage() {
               />
               Show Back on History, Reports, Team access, and Admin controls
             </label>
+            <label className="flag-toggle">
+              <input
+                type="checkbox"
+                checked={draft.includeWonLeadsInClientCare}
+                onChange={(event) => setDraft((current) => ({ ...current, includeWonLeadsInClientCare: event.target.checked }))}
+              />
+              {draft.labels.wonLeadsInClientCareLabel}
+            </label>
           </div>
+          <p className="table-note">{draft.labels.wonLeadsInClientCareHint}</p>
         </form>
       </> : null}
 

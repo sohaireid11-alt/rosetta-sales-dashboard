@@ -45,6 +45,19 @@ Optional Google Calendar sync (see `GOOGLE_CALENDAR_SETUP.md`; do not commit the
 The deployment account and database should be transferred to Rosetta before any
 administrator leaves the organization.
 
+## Client care for Won leads
+
+Migration `drizzle/0010_won_leads_client_care.sql`:
+
+- Adds a unique index on `client_follow_ups.sales_record_id` (unlinked rows may still share a NULL).
+- Unlinks extra follow-ups that pointed at the same sales record so the unique index can apply; those care rows are kept.
+- Inserts a client-care row for each existing `sales_records` row in stage `Won` that is not already linked.
+
+Apply with the usual `wrangler d1 migrations apply` before deploy. The Worker also
+idempotently creates missing Won-lead care rows when an admin opens Client care
+or Admin controls, and when a lead is created, updated, imported, or merged into
+Won. Turning the Admin toggle off stops new auto-adds; existing care rows stay.
+
 ## Project structure
 
 - `app/`: dashboard pages, UI, and API routes
