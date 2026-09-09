@@ -27,6 +27,13 @@ import {
   type FieldSettings,
 } from "./lib/field-settings-core";
 import { displayChoices, includesChoice, parseStoredValues } from "./lib/field-values";
+import {
+  filterAndSortSalesRecords,
+  isRecordsDateFilter,
+  isRecordsSortKey,
+  type RecordsDateFilter,
+  type RecordsSortKey,
+} from "./lib/records-list";
 import { SchemaField } from "./schema-field";
 import {
   CARE_ATTENTION_STATUSES,
@@ -296,6 +303,9 @@ export default function Home() {
   const [activeView, setActiveView] = useState<"overview" | "records" | "client-care">("overview");
   const [recordFilter, setRecordFilter] = useState<RecordFilter>("all");
   const [recordSearch, setRecordSearch] = useState("");
+  const [recordsSort, setRecordsSort] = useState<RecordsSortKey>("date");
+  const [recordsDateFilter, setRecordsDateFilter] = useState<RecordsDateFilter>("all");
+  const [recordsStatusFilter, setRecordsStatusFilter] = useState("");
   const [ownerFilter, setOwnerFilter] = useState(ALL_OWNERS);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -374,19 +384,21 @@ export default function Home() {
   const owners = useMemo(() => Array.from(new Set(records.map((record) => record.requestReceivedBy))).sort(), [records]);
   const visibleRecords = useMemo(() => {
     const now = new Date(); const cutoff = new Date(now);
-    const searchQuery = recordSearch.trim().toLocaleLowerCase();
-    const phoneQuery = searchQuery.replace(/\D/g, "");
     if (timeFilter === "last90") cutoff.setDate(now.getDate() - 90);
     if (timeFilter === "quarter") cutoff.setMonth(Math.floor(now.getMonth() / 3) * 3, 1);
     return records.filter((record) => {
       const state = followUpState(record.nextFollowUpAt);
       const recordMatches = recordFilter === "all" || (recordFilter === "today" && state === "today") || (recordFilter === "overdue" && state === "overdue") || (recordFilter === "next7" && state === "next7") || (recordFilter === "none" && state === "none");
-      const nameMatches = !searchQuery || [record.leadName, record.contactName, record.company].some((value) => value.toLocaleLowerCase().includes(searchQuery));
-      const phoneMatches = phoneQuery.length > 0 && record.contactPhone.replace(/\D/g, "").includes(phoneQuery);
-      const searchMatches = activeView !== "records" || nameMatches || phoneMatches;
-      return recordMatches && searchMatches && (ownerFilter === ALL_OWNERS || record.requestReceivedBy === ownerFilter) && (timeFilter === "all" || new Date(`${record.createdAt}T12:00:00`) >= cutoff);
+      return recordMatches && (ownerFilter === ALL_OWNERS || record.requestReceivedBy === ownerFilter) && (timeFilter === "all" || new Date(`${record.createdAt}T12:00:00`) >= cutoff);
     });
-  }, [activeView, ownerFilter, recordFilter, recordSearch, records, timeFilter]);
+  }, [ownerFilter, recordFilter, records, timeFilter]);
+  const listedRecords = useMemo(() => filterAndSortSalesRecords(visibleRecords, {
+    nameQuery: recordSearch,
+    status: recordsStatusFilter,
+    dateFilter: recordsDateFilter,
+    sortKey: recordsSort,
+    statusOrder: fieldSettings.lists.statuses.map((option) => option.value),
+  }), [fieldSettings.lists.statuses, recordSearch, recordsDateFilter, recordsSort, recordsStatusFilter, visibleRecords]);
 
   const performance = useMemo(() => {
     const closedStages = CLOSED_STAGES as readonly string[];
@@ -618,7 +630,50 @@ export default function Home() {
       </> : null}
       {!isLoading && activeView === "records" ? <>
         {isAdmin ? <section className="records-toolbar"><p>{labels.importToolbarCopy}</p><div className="records-actions"><input ref={importInputRef} className="file-input" type="file" accept=".csv,text/csv" onChange={importCsv} /><button type="button" className="secondary-action" onClick={() => importInputRef.current?.click()} disabled={isImporting}>{isImporting ? "Importing..." : labels.importCsv}</button><button type="button" className="secondary-action" onClick={exportCsv} disabled={isExporting}>{isExporting ? "Exporting..." : labels.exportCsv}</button></div></section> : null}
-        <div className="lead-search"><label htmlFor="lead-search">{labels.searchLeads}</label><input id="lead-search" type="search" value={recordSearch} onChange={(event) => setRecordSearch(event.target.value)} placeholder={labels.searchPlaceholder} /></div>
+        <section className="filter-bar records-list-controls">
+          <label>
+            <span>{labels.recordsSortLabel}</span>
+            <select
+              aria-label={labels.recordsSortLabel}
+              value={recordsSort}
+              onChange={(event) => { if (isRecordsSortKey(event.target.value)) setRecordsSort(event.target.value); }}
+            >
+              <option value="name">{labels.recordsSortName}</option>
+              <option value="date">{labels.recordsSortDate}</option>
+              <option value="status">{labels.recordsSortStatus}</option>
+            </select>
+          </label>
+          <div className="records-filters" role="group" aria-labelledby="records-filters-label">
+            <span id="records-filters-label" className="records-filters-title">{labels.recordsFiltersLabel}</span>
+            <label htmlFor="lead-search">
+              <span>{labels.recordsFilterName}</span>
+              <input id="lead-search" type="search" value={recordSearch} onChange={(event) => setRecordSearch(event.target.value)} placeholder={labels.searchPlaceholder} />
+            </label>
+            <label>
+              <span>{labels.recordsFilterDate}</span>
+              <select
+                aria-label={labels.recordsFilterDate}
+                value={recordsDateFilter}
+                onChange={(event) => { if (isRecordsDateFilter(event.target.value)) setRecordsDateFilter(event.target.value); }}
+              >
+                <option value="all">{labels.periodAllTime}</option>
+                <option value="last90">{labels.periodLast90Days}</option>
+                <option value="quarter">{labels.periodThisQuarter}</option>
+              </select>
+            </label>
+            <label>
+              <span>{labels.recordsFilterStatus}</span>
+              <select
+                aria-label={labels.recordsFilterStatus}
+                value={recordsStatusFilter}
+                onChange={(event) => setRecordsStatusFilter(event.target.value)}
+              >
+                <option value="">{labels.recordsFilterAllStatuses}</option>
+                {visibleOptions(lists.statuses).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+          </div>
+        </section>
         <section className="record-filter-row" aria-label="Lead worklist filters">{recordFilters.map((filter) => <button type="button" key={filter.key} className={recordFilter === filter.key ? "filter-chip is-active" : "filter-chip"} onClick={() => setRecordFilter(filter.key)}>{filter.label}</button>)}</section>
         <section className="records-section records-table">
           <div className="table-wrap"><table>
@@ -631,7 +686,7 @@ export default function Home() {
               {columnVisible(fieldSettings, "sales_records", "value") ? <th>{columnLabel(fieldSettings, "sales_records", "value", "Value")}</th> : null}
               {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <th aria-label="Actions" /> : null}
             </tr></thead>
-            <tbody>{visibleRecords.map((record) => <tr key={record.id}>
+            <tbody>{listedRecords.map((record) => <tr key={record.id}>
               {columnVisible(fieldSettings, "sales_records", "leadContact") ? <td><strong>{record.leadName}</strong><small>{record.contactName || record.company || labels.contactNotAdded}{record.contactTitle ? ` \u00b7 ${record.contactTitle}` : ""}</small></td> : null}
               {columnVisible(fieldSettings, "sales_records", "service") ? <td>{choiceLabel(lists.services, record.service)}{includesChoice(record.service, SCHEDULED_INTERPRETATION_SERVICE) ? <small>{choiceLabel(lists.interpretationDeliveries, record.serviceDelivery)}{" \u00b7 "}{choiceLabel(lists.interpretationModes, record.interpretationMode)}</small> : null}</td> : null}
               {columnVisible(fieldSettings, "sales_records", "statusMeeting") ? <td><span className={stageClass(parseStoredValues(record.stage)[0] ?? record.stage)}>{choiceLabel(lists.statuses, record.stage)}</span><small>{choiceLabel(lists.meetingStages, record.meetingStage)}</small></td> : null}
@@ -640,7 +695,7 @@ export default function Home() {
               {columnVisible(fieldSettings, "sales_records", "value") ? <td className="revenue-cell">{money(record.estimatedRevenueCents)}<small>{choiceLabel(lists.opportunityTypes, record.opportunityType)}</small></td> : null}
               {isAdmin && columnVisible(fieldSettings, "sales_records", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => void loadActivities(record)}>Activity</button><button type="button" onClick={() => openEditRecord(record)}>Edit</button><button type="button" onClick={() => openMergeRecord(record)}>Merge</button><button type="button" className="delete-button" onClick={() => void deleteRecord(record)}>Delete</button></div></td> : null}
             </tr>)}</tbody>
-          </table>{!visibleRecords.length ? <p className="empty-table">{labels.emptyLeads}</p> : null}</div>
+          </table>{!listedRecords.length ? <p className="empty-table">{labels.emptyLeads}</p> : null}</div>
         </section>
       </> : null}
       {!isLoading && activeView === "client-care" ? <section className="records-section client-care-section"><div className="client-care-heading"><div><p className="eyebrow">{labels.careSectionEyebrow}</p><h2>{labels.careSectionHeading}</h2><p className="table-note">{labels.careSectionNote}</p>{fieldSettings.includeWonLeadsInClientCare ? <p className="table-note">{labels.careWonLeadsNote}</p> : null}</div></div><div className="table-wrap"><table><thead><tr>
