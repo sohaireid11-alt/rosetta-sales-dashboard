@@ -51,6 +51,11 @@ select,input { min-height:38px; padding:8px 10px; }
 textarea { padding:10px; resize:vertical; }
 select:focus,input:focus,textarea:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(39,97,143,.12); }
 .filter-bar select { min-width:160px; }
+.records-list-controls { flex-wrap:wrap; align-items:flex-end; gap:18px; }
+.records-filters { display:flex; flex-wrap:wrap; align-items:flex-end; gap:16px; }
+.records-filters-title { width:100%; color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.records-filters label { min-width:160px; flex:1 1 160px; }
+.records-filters input { min-width:180px; }
 .record-count { margin:17px 0 0 auto; color:var(--muted); font-size:13px; }
 .metrics-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; }
 .metric-card { min-height:142px; padding:19px; border:1px solid var(--line); border-top:4px solid var(--navy); background:#fff; }
