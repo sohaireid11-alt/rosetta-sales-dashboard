@@ -139,6 +139,7 @@ export const DEFAULT_REPORT_PRESETS: ReportPreset[] = [
 
 export const DEFAULT_CUSTOM_REPORT_RANGE_ENABLED = true;
 export const DEFAULT_SHOW_BACK_CONTROL = true;
+export const DEFAULT_INCLUDE_WON_LEADS_IN_CLIENT_CARE = true;
 
 export const UI_LABEL_GROUPS = [
   "chrome",
@@ -240,6 +241,9 @@ export const UI_LABEL_KEYS = [
   "notLinkedLead",
   "noExpansionNote",
   "linkedToPrefix",
+  "wonLeadsInClientCareLabel",
+  "wonLeadsInClientCareHint",
+  "careWonLeadsNote",
   "formLeadWorkspace",
   "formUpdateSalesRecord",
   "formClientCare",
@@ -441,6 +445,9 @@ export const DEFAULT_UI_LABELS: Record<UiLabelKey, string> = {
   notLinkedLead: "Not linked to a sales record",
   noExpansionNote: "No expansion note",
   linkedToPrefix: "Linked to",
+  wonLeadsInClientCareLabel: "Show / auto-add Won leads in Client Care",
+  wonLeadsInClientCareHint: "When on, every Won sales record gets a client-care row if it does not already have one. Turning this off stops adding new Won leads. Existing care records stay on the list, including after a lead moves away from Won.",
+  careWonLeadsNote: "Won leads are added here automatically. Changing a lead away from Won does not remove this care record.",
   formLeadWorkspace: "Lead workspace",
   formUpdateSalesRecord: "Update sales record",
   formClientCare: "Client care",
@@ -640,6 +647,9 @@ export const UI_LABEL_META: Record<UiLabelKey, { title: string; hint: string; gr
   notLinkedLead: { group: "clientCare", title: "Unlinked client fallback", hint: "Shown when a follow-up is not linked to a lead." },
   noExpansionNote: { group: "clientCare", title: "Missing expansion fallback", hint: "Shown when expansion opportunity is empty." },
   linkedToPrefix: { group: "clientCare", title: "Linked lead prefix", hint: "Appears before the linked lead name." },
+  wonLeadsInClientCareLabel: { group: "clientCare", title: "Won leads admin toggle", hint: "Checkbox label under History & reports for auto-adding Won leads to Client care." },
+  wonLeadsInClientCareHint: { group: "clientCare", title: "Won leads admin hint", hint: "Help text under the Won-leads Client care toggle." },
+  careWonLeadsNote: { group: "clientCare", title: "Won leads table note", hint: "Shown under the Client care table heading when the Won-leads toggle is on." },
   formLeadWorkspace: { group: "forms", title: "Sales form eyebrow", hint: "Small label on the add/edit sales record modal." },
   formUpdateSalesRecord: { group: "forms", title: "Update sales record title", hint: "Modal title when editing a sales record." },
   formClientCare: { group: "forms", title: "Client form eyebrow", hint: "Small label on the client follow-up modal." },
@@ -757,7 +767,7 @@ export const UI_LABEL_GROUP_META: Record<UiLabelGroup, { title: string; descript
   chrome: { title: "Navigation and chrome", description: "Settings menu, Back button, tabs, and shared buttons." },
   overview: { title: "Overview", description: "Metric cards, filters, follow-up queue, and performance tables." },
   salesRecords: { title: "Sales records", description: "Toolbar, search, filter chips, and empty states." },
-  clientCare: { title: "Client care", description: "Table headings and empty states." },
+  clientCare: { title: "Client care", description: "Table headings, empty states, and the Won-leads toggle wording. The on/off switch itself is under History & reports." },
   forms: { title: "Forms and dialogs", description: "Section titles and buttons on add, edit, activity, and merge dialogs. Field labels themselves are under Form fields." },
   history: { title: "History", description: "Headings and empty states on the Change history page. Lookback days are under History & reports." },
   reports: { title: "Reports", description: "Headings, custom date-range wording, and help text on the Reports page. Preset ranges and show/hide toggles are under History & reports." },

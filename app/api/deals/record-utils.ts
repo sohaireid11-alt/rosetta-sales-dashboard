@@ -299,6 +299,32 @@ function keepText(primary: string, duplicate: string) {
   return primary.trim() ? primary : duplicate;
 }
 
+async function reassignClientFollowUpsOnMerge(database: D1Database, primaryId: number, duplicateId: number, now: string) {
+  const primaryLinked = await database.prepare(
+    "SELECT id FROM client_follow_ups WHERE sales_record_id = ? ORDER BY id ASC LIMIT 1"
+  ).bind(primaryId).first<{ id: number }>();
+  const duplicateLinked = await database.prepare(
+    "SELECT id FROM client_follow_ups WHERE sales_record_id = ? ORDER BY id ASC"
+  ).bind(duplicateId).all<{ id: number }>();
+  const duplicateIds = duplicateLinked.results.map((row) => row.id);
+  if (!duplicateIds.length) return [];
+  if (primaryLinked) {
+    return [
+      database.prepare("UPDATE client_follow_ups SET sales_record_id = NULL, updated_at = ? WHERE sales_record_id = ?").bind(now, duplicateId),
+    ];
+  }
+  const [keepId, ...extras] = duplicateIds;
+  const statements = [
+    database.prepare("UPDATE client_follow_ups SET sales_record_id = ?, updated_at = ? WHERE id = ?").bind(primaryId, now, keepId),
+  ];
+  if (extras.length) {
+    statements.push(
+      database.prepare(`UPDATE client_follow_ups SET sales_record_id = NULL, updated_at = ? WHERE id IN (${extras.map(() => "?").join(",")})`).bind(now, ...extras)
+    );
+  }
+  return statements;
+}
+
 export async function mergeRecords(primaryId: number, duplicateIdValue: unknown) {
   const duplicateId = Number(duplicateIdValue);
   if (!Number.isInteger(duplicateId) || duplicateId < 1 || duplicateId === primaryId) {
@@ -318,6 +344,7 @@ export async function mergeRecords(primaryId: number, duplicateIdValue: unknown)
   const now = new Date().toISOString();
   const mergedCreatedAt = primary.createdAt <= duplicate.createdAt ? primary.createdAt : duplicate.createdAt;
   const mergedMeetingStage = primary.meetingStage === "No meeting yet" ? duplicate.meetingStage : primary.meetingStage;
+  const followUpMoves = await reassignClientFollowUpsOnMerge(database, primary.id, duplicate.id, now);
 
   await database.batch([
     database.prepare(
@@ -334,7 +361,7 @@ export async function mergeRecords(primaryId: number, duplicateIdValue: unknown)
       estimatedRevenueCents, bookedRevenueCents, mergedCreatedAt, primary.closedAt ?? duplicate.closedAt, primary.id
     ),
     database.prepare("UPDATE sales_record_activities SET sales_record_id = ? WHERE sales_record_id = ?").bind(primary.id, duplicate.id),
-    database.prepare("UPDATE client_follow_ups SET sales_record_id = ?, updated_at = ? WHERE sales_record_id = ?").bind(primary.id, now, duplicate.id),
+    ...followUpMoves,
     database.prepare("INSERT INTO sales_record_activities (sales_record_id, activity_type, content, created_at) VALUES (?, ?, ?, ?)").bind(primary.id, "Note", `Merged duplicate record: ${duplicate.leadName}.`, now),
     database.prepare("DELETE FROM sales_records WHERE id = ?").bind(duplicate.id),
   ]);

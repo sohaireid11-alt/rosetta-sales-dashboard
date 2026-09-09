@@ -107,26 +107,62 @@ export async function listClientFollowUps() {
   return result.results;
 }
 
+export async function findClientFollowUpBySalesRecordId(salesRecordId: number, exceptId?: number) {
+  const database = await getDatabase();
+  if (exceptId) {
+    return database.prepare(
+      `SELECT ${selectColumns} FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id WHERE client_follow_ups.sales_record_id = ? AND client_follow_ups.id != ? ORDER BY client_follow_ups.id ASC LIMIT 1`
+    ).bind(salesRecordId, exceptId).first<ClientFollowUp>();
+  }
+  return database.prepare(
+    `SELECT ${selectColumns} FROM client_follow_ups LEFT JOIN sales_records ON sales_records.id = client_follow_ups.sales_record_id WHERE client_follow_ups.sales_record_id = ? ORDER BY client_follow_ups.id ASC LIMIT 1`
+  ).bind(salesRecordId).first<ClientFollowUp>();
+}
+
+async function assertUniqueSalesRecordLink(salesRecordId: number | null, exceptId?: number) {
+  if (!salesRecordId) return;
+  const existing = await findClientFollowUpBySalesRecordId(salesRecordId, exceptId);
+  if (existing) {
+    throw new ClientFollowUpValidationError("This won lead already has a client-care record.");
+  }
+}
+
 export async function createClientFollowUp(input: ClientFollowUpInput) {
+  await assertUniqueSalesRecordLink(input.salesRecordId);
   const database = await getDatabase();
   const now = new Date().toISOString();
-  const result = await database.prepare(
-    "INSERT INTO client_follow_ups (sales_record_id, client_name, relationship_type, last_engagement_at, last_check_in_at, satisfaction_status, next_follow_up_at, next_action, expansion_opportunity, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-  ).bind(
-    input.salesRecordId, input.clientName, input.relationshipType, input.lastEngagementAt, input.lastCheckInAt,
-    input.satisfactionStatus, input.nextFollowUpAt, input.nextAction, input.expansionOpportunity, now, now
-  ).run();
-  return findClientFollowUp(Number(result.meta.last_row_id));
+  try {
+    const result = await database.prepare(
+      "INSERT INTO client_follow_ups (sales_record_id, client_name, relationship_type, last_engagement_at, last_check_in_at, satisfaction_status, next_follow_up_at, next_action, expansion_opportunity, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(
+      input.salesRecordId, input.clientName, input.relationshipType, input.lastEngagementAt, input.lastCheckInAt,
+      input.satisfactionStatus, input.nextFollowUpAt, input.nextAction, input.expansionOpportunity, now, now
+    ).run();
+    return findClientFollowUp(Number(result.meta.last_row_id));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("UNIQUE constraint failed")) {
+      throw new ClientFollowUpValidationError("This won lead already has a client-care record.");
+    }
+    throw error;
+  }
 }
 
 export async function updateClientFollowUp(id: number, input: ClientFollowUpInput) {
+  await assertUniqueSalesRecordLink(input.salesRecordId, id);
   const database = await getDatabase();
-  await database.prepare(
-    "UPDATE client_follow_ups SET sales_record_id = ?, client_name = ?, relationship_type = ?, last_engagement_at = ?, last_check_in_at = ?, satisfaction_status = ?, next_follow_up_at = ?, next_action = ?, expansion_opportunity = ?, updated_at = ? WHERE id = ?"
-  ).bind(
-    input.salesRecordId, input.clientName, input.relationshipType, input.lastEngagementAt, input.lastCheckInAt,
-    input.satisfactionStatus, input.nextFollowUpAt, input.nextAction, input.expansionOpportunity, new Date().toISOString(), id
-  ).run();
+  try {
+    await database.prepare(
+      "UPDATE client_follow_ups SET sales_record_id = ?, client_name = ?, relationship_type = ?, last_engagement_at = ?, last_check_in_at = ?, satisfaction_status = ?, next_follow_up_at = ?, next_action = ?, expansion_opportunity = ?, updated_at = ? WHERE id = ?"
+    ).bind(
+      input.salesRecordId, input.clientName, input.relationshipType, input.lastEngagementAt, input.lastCheckInAt,
+      input.satisfactionStatus, input.nextFollowUpAt, input.nextAction, input.expansionOpportunity, new Date().toISOString(), id
+    ).run();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("UNIQUE constraint failed")) {
+      throw new ClientFollowUpValidationError("This won lead already has a client-care record.");
+    }
+    throw error;
+  }
   return findClientFollowUp(id);
 }
 

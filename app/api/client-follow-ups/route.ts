@@ -8,10 +8,12 @@ import {
 import { AccessError, requireRole } from "../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../lib/audit";
 import { syncClientCareCalendar } from "../../lib/calendar-sync";
+import { ensureWonClientFollowUps } from "./won-client-care";
 
 export async function GET(request: Request) {
   try {
-    await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin"]);
+    await ensureWonClientFollowUps({ actor: user });
     return Response.json({ followUps: await listClientFollowUps() });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : 500;

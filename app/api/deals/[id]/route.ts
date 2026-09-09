@@ -2,6 +2,7 @@ import { RecordValidationError, errorMessage, findRecord, removeRecord, readReco
 import { AccessError, requireRole } from "../../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../../lib/audit";
 import { deleteFollowUpCalendarSafe, syncSalesFollowUpCalendar } from "../../../lib/calendar-sync";
+import { ensureWonClientFollowUps } from "../../client-follow-ups/won-client-care";
 
 function readId(value: string) {
   const id = Number(value);
@@ -23,6 +24,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       summary: `${actorLabel(user)} updated lead ${record.leadName}`,
     });
     await syncSalesFollowUpCalendar(record);
+    await ensureWonClientFollowUps({ actor: user, salesRecordId: record.id });
     return Response.json({ record });
   } catch (error) {
     const status = error instanceof AccessError ? error.status : error instanceof RecordValidationError ? 400 : 500;

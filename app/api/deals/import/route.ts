@@ -7,6 +7,7 @@ import {
 } from "../record-utils";
 import { AccessError, requireRole } from "../../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../../lib/audit";
+import { ensureWonClientFollowUps } from "../../client-follow-ups/won-client-care";
 
 const maximumImportRows = 500;
 
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
     const lists = await getOptionLists();
     const records = payload.records.map((record) => parseRecordInput(record, lists, settings.fields));
     const result = await importRecords(records);
+    await ensureWonClientFollowUps({ actor: user });
     if (result.imported || result.notesAdded) {
       const imported = result.imported
         ? `${result.imported} sales record${result.imported === 1 ? "" : "s"}`

@@ -84,6 +84,7 @@ export const clientFollowUps = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
+    uniqueIndex("idx_client_follow_ups_sales_record_id").on(table.salesRecordId),
     index("idx_client_follow_ups_next_follow_up_at").on(table.nextFollowUpAt),
     index("idx_client_follow_ups_satisfaction_status").on(table.satisfactionStatus),
   ]

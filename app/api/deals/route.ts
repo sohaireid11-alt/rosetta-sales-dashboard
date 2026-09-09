@@ -2,6 +2,7 @@ import { RecordValidationError, createRecord, errorMessage, listRecords, readRec
 import { AccessError, requireRole } from "../../lib/access";
 import { actorLabel, recordAuditEvent } from "../../lib/audit";
 import { syncSalesFollowUpCalendar } from "../../lib/calendar-sync";
+import { ensureWonClientFollowUps } from "../client-follow-ups/won-client-care";
 
 export async function GET(request: Request) {
   try {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
         summary: `${actorLabel(user)} added sales record ${record.leadName}`,
       });
       await syncSalesFollowUpCalendar(record);
+      await ensureWonClientFollowUps({ actor: user, salesRecordId: record.id });
     }
     return Response.json({ record }, { status: 201 });
   } catch (error) {

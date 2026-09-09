@@ -610,7 +610,7 @@ export default function Home() {
           </table>{!visibleRecords.length ? <p className="empty-table">{labels.emptyLeads}</p> : null}</div>
         </section>
       </> : null}
-      {!isLoading && activeView === "client-care" ? <section className="records-section client-care-section"><div className="client-care-heading"><div><p className="eyebrow">{labels.careSectionEyebrow}</p><h2>{labels.careSectionHeading}</h2><p className="table-note">{labels.careSectionNote}</p></div></div><div className="table-wrap"><table><thead><tr>
+      {!isLoading && activeView === "client-care" ? <section className="records-section client-care-section"><div className="client-care-heading"><div><p className="eyebrow">{labels.careSectionEyebrow}</p><h2>{labels.careSectionHeading}</h2><p className="table-note">{labels.careSectionNote}</p>{fieldSettings.includeWonLeadsInClientCare ? <p className="table-note">{labels.careWonLeadsNote}</p> : null}</div></div><div className="table-wrap"><table><thead><tr>
         {columnVisible(fieldSettings, "client_care", "client") ? <th>{columnLabel(fieldSettings, "client_care", "client", "Client")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "relationship") ? <th>{columnLabel(fieldSettings, "client_care", "relationship", "Relationship")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "satisfaction") ? <th>{columnLabel(fieldSettings, "client_care", "satisfaction", "Satisfaction")}</th> : null}
@@ -658,7 +658,11 @@ export default function Home() {
         if (!sectionFields.length) return null;
         return <div className="form-section" key={sectionKey}><h3>{sectionTitle(fieldSettings, sectionKey, labels.sectionCareRelationship)}</h3><div className="form-grid">
           {sectionFields.map((field) => field.fieldKey === "salesRecordId" ? (
-            <label key={field.fieldKey}>{field.label}{field.isRequired ? null : <span className="optional"> {labels.optionalMark}</span>}<select value={clientForm.salesRecordId} onChange={(event) => { const selected = records.find((record) => record.id === Number(event.target.value)); setClientForm({ ...clientForm, salesRecordId: event.target.value, clientName: selected ? selected.leadName : clientForm.clientName }); }}><option value="">{labels.selectPlaceholder}</option>{records.filter((record) => includesChoice(record.stage, WON_STAGE)).map((record) => <option key={record.id} value={record.id}>{record.leadName}</option>)}</select></label>
+            <label key={field.fieldKey}>{field.label}{field.isRequired ? null : <span className="optional"> {labels.optionalMark}</span>}<select value={clientForm.salesRecordId} onChange={(event) => { const selected = records.find((record) => record.id === Number(event.target.value)); setClientForm({ ...clientForm, salesRecordId: event.target.value, clientName: selected ? selected.leadName : clientForm.clientName }); }}><option value="">{labels.selectPlaceholder}</option>{records.filter((record) => {
+              const linkedElsewhere = clientFollowUps.some((item) => item.salesRecordId === record.id && item.id !== editingClientFollowUp?.id);
+              const isCurrentLink = record.id === Number(clientForm.salesRecordId);
+              return !linkedElsewhere && (includesChoice(record.stage, WON_STAGE) || isCurrentLink);
+            }).map((record) => <option key={record.id} value={record.id}>{record.leadName}</option>)}</select></label>
           ) : (
             <SchemaField
               key={field.fieldKey}
