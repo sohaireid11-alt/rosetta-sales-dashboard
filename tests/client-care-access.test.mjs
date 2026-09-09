@@ -61,8 +61,8 @@ test("GET /api/client-follow-ups allows every signed-in dashboard role", async (
   assert.match(postFollowUps, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(getDeals, /requireRole\(request, \["admin", "contributor"\]\)/);
   assert.match(team, /requireRole\(request, \["admin", "contributor"\]\)/);
-  assert.match(handlerSource(followUpId, "PATCH", "DELETE"), /requireRole\(request, \["admin"\]\)/);
-  assert.match(handlerSource(followUpId, "DELETE"), /requireRole\(request, \["admin"\]\)/);
+  assert.match(handlerSource(followUpId, "PATCH", "DELETE"), /requireRole\(request, \["admin", "contributor"\]\)/);
+  assert.match(handlerSource(followUpId, "DELETE"), /requireRole\(request, \["admin", "contributor"\]\)/);
 });
 
 test("dashboard loads Client Care for admins and contributors and surfaces care API errors", async () => {

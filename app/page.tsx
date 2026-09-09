@@ -617,7 +617,7 @@ export default function Home() {
         {columnVisible(fieldSettings, "client_care", "lastCheckIn") ? <th>{columnLabel(fieldSettings, "client_care", "lastCheckIn", "Last check-in")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "nextAction") ? <th>{columnLabel(fieldSettings, "client_care", "nextAction", "Next action")}</th> : null}
         {columnVisible(fieldSettings, "client_care", "nextFollowUp") ? <th>{columnLabel(fieldSettings, "client_care", "nextFollowUp", "Next follow-up")}</th> : null}
-        {isAdmin && columnVisible(fieldSettings, "client_care", "actions") ? <th aria-label="Actions" /> : null}
+        {columnVisible(fieldSettings, "client_care", "actions") ? <th aria-label="Actions" /> : null}
       </tr></thead><tbody>{clientFollowUps.map((item) => <tr key={item.id}>
         {columnVisible(fieldSettings, "client_care", "client") ? <td><strong>{item.clientName}</strong><small>{item.linkedLeadName ? `${labels.linkedToPrefix} ${item.linkedLeadName}` : labels.notLinkedLead}</small></td> : null}
         {columnVisible(fieldSettings, "client_care", "relationship") ? <td>{choiceLabel(lists.relationshipTypes, item.relationshipType)}<small>Last service: {dateLabel(item.lastEngagementAt, labels.notScheduled)}</small></td> : null}
@@ -625,7 +625,7 @@ export default function Home() {
         {columnVisible(fieldSettings, "client_care", "lastCheckIn") ? <td>{dateLabel(item.lastCheckInAt, labels.notScheduled)}</td> : null}
         {columnVisible(fieldSettings, "client_care", "nextAction") ? <td>{choiceLabel(lists.followUpActions, item.nextAction, labels.actionNotSet)}<small>{item.expansionOpportunity || labels.noExpansionNote}</small></td> : null}
         {columnVisible(fieldSettings, "client_care", "nextFollowUp") ? <td><span className={`follow-up-tag follow-up-${followUpState(item.nextFollowUpAt)}`}>{dateLabel(item.nextFollowUpAt, labels.notScheduled)}</span></td> : null}
-        {isAdmin && columnVisible(fieldSettings, "client_care", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => openEditClientFollowUp(item)}>Edit</button><button type="button" className="delete-button" onClick={() => void deleteClientFollowUp(item)}>Delete</button></div></td> : null}
+        {columnVisible(fieldSettings, "client_care", "actions") ? <td><div className="row-actions"><button type="button" onClick={() => openEditClientFollowUp(item)}>Edit</button><button type="button" className="delete-button" onClick={() => void deleteClientFollowUp(item)}>Delete</button></div></td> : null}
       </tr>)}</tbody></table>{!clientFollowUps.length ? <p className="empty-table">{labels.emptyClients}</p> : null}</div></section> : null}
     </div>
 

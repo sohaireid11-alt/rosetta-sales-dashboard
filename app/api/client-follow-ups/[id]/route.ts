@@ -18,7 +18,7 @@ function readId(value: string) {
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin", "contributor"]);
     const { id } = await context.params;
     const followUp = await updateClientFollowUp(readId(id), await readClientFollowUpInput(await request.json()));
     if (!followUp) return Response.json({ error: "Client follow-up not found." }, { status: 404 });
@@ -39,7 +39,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireRole(request, ["admin"]);
+    const user = await requireRole(request, ["admin", "contributor"]);
     const { id } = await context.params;
     const followUpId = readId(id);
     const existing = await findClientFollowUp(followUpId);
